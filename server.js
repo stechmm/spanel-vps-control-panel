@@ -7,7 +7,12 @@ const { exec } = require('child_process');
 
 const PORT = 5050;
 const PUBLIC_DIR = __dirname;
+
+// Production Admin Password (Default: admin123, or SPackAdmin2026!)
 const ADMIN_PASSWORD_HASH = crypto.createHash('sha256').update(process.env.SPANEL_PASS || 'admin123').digest('hex');
+
+// Active Auth Tokens Store
+const activeTokens = new Set();
 
 const mimeTypes = {
     '.html': 'text/html',
@@ -19,7 +24,6 @@ const mimeTypes = {
     '.ico': 'image/x-icon'
 };
 
-// Utility: parse JSON request body
 function getJsonBody(req) {
     return new Promise((resolve) => {
         let body = '';
@@ -34,7 +38,6 @@ function getJsonBody(req) {
     });
 }
 
-// Utility: execute shell command promise
 function runCmd(cmd) {
     return new Promise((resolve) => {
         exec(cmd, { timeout: 30000 }, (error, stdout, stderr) => {
@@ -43,24 +46,42 @@ function runCmd(cmd) {
     });
 }
 
+function isAuthorized(req) {
+    const authHeader = req.headers['authorization'] || '';
+    const token = authHeader.replace('Bearer ', '').trim();
+    return activeTokens.has(token);
+}
+
 const server = http.createServer(async (req, res) => {
     // API Endpoints
     if (req.url.startsWith('/api/')) {
         res.setHeader('Content-Type', 'application/json');
 
-        // Admin Auth Login Check
+        // Admin Login Action
         if (req.url === '/api/login' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const passHash = crypto.createHash('sha256').update(body.password || '').digest('hex');
             if (passHash === ADMIN_PASSWORD_HASH) {
                 const token = crypto.randomBytes(24).toString('hex');
+                activeTokens.add(token);
                 return res.end(JSON.stringify({ success: true, token }));
             } else {
-                return res.end(JSON.stringify({ success: false, error: 'Invalid admin password' }));
+                return res.end(JSON.stringify({ success: false, error: 'Invalid password' }));
             }
         }
 
-        // 1. Get Live System Metrics Stats
+        // Verify Authentication Status
+        if (req.url === '/api/auth-check' && req.method === 'GET') {
+            return res.end(JSON.stringify({ authenticated: isAuthorized(req) }));
+        }
+
+        // Protect all sensitive API endpoints
+        if (!isAuthorized(req)) {
+            res.statusCode = 401;
+            return res.end(JSON.stringify({ error: 'Unauthorized. Admin login required.' }));
+        }
+
+        // 1. Live System Metrics Stats
         if (req.url === '/api/stats' && req.method === 'GET') {
             const totalMem = os.totalmem();
             const freeMem = os.freemem();
@@ -121,13 +142,11 @@ const server = http.createServer(async (req, res) => {
 }`;
             }
 
-            // Create directory & sample index.html
             await runCmd(`mkdir -p ${siteDir}`);
             if (!fs.existsSync(`${siteDir}/index.html`)) {
                 fs.writeFileSync(`${siteDir}/index.html`, `<h1>Welcome to ${domain}</h1><p>Hosted via SPanel Pro</p>`);
             }
 
-            // Write Nginx config & reload
             fs.writeFileSync(nginxConfPath, nginxConfig);
             await runCmd(`ln -sf ${nginxConfPath} ${nginxLinkPath}`);
             const testResult = await runCmd("nginx -t && systemctl reload nginx");
@@ -139,7 +158,7 @@ const server = http.createServer(async (req, res) => {
             }));
         }
 
-        // 3. Issue SSL Certificate (Certbot Let's Encrypt)
+        // 3. Issue SSL Certificate
         if (req.url === '/api/issue-ssl' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const domain = (body.domain || '').trim();
@@ -189,7 +208,7 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 5. File Manager: Read File Content
+        // 5. File Manager: Read File
         if (req.url === '/api/file/read' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const filePath = body.filePath;
@@ -205,7 +224,7 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 6. File Manager: Save File Content
+        // 6. File Manager: Save File
         if (req.url === '/api/file/save' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const filePath = body.filePath;
@@ -219,7 +238,7 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 7. SSH Terminal CLI Executor
+        // 7. SSH Terminal Execution
         if (req.url === '/api/terminal-exec' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const cmd = body.command;

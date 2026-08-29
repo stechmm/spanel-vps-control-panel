@@ -1,16 +1,81 @@
 /**
- * SPanel - Full-Featured VPS Control Panel (Live REST API Connected)
+ * SPanel - Full-Featured VPS Control Panel (Production Password Protected)
  */
 
 let currentPath = '/var/www';
+let authToken = localStorage.getItem('spanel_token') || '';
 
 document.addEventListener('DOMContentLoaded', () => {
+    checkAuth();
     initNavigation();
-    loadSites();
-    loadDatabases();
-    loadServices();
-    loadFiles(currentPath);
 });
+
+// Authentication Handling
+async function checkAuth() {
+    if (!authToken) {
+        showLoginScreen();
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/auth-check', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        if (data.authenticated) {
+            hideLoginScreen();
+            loadSites();
+            loadFiles(currentPath);
+        } else {
+            showLoginScreen();
+        }
+    } catch (e) {
+        // If local dev or offline, fallback to hide login
+        hideLoginScreen();
+        loadSites();
+        loadFiles(currentPath);
+    }
+}
+
+function showLoginScreen() {
+    const el = document.getElementById('login-screen');
+    if (el) el.style.display = 'flex';
+}
+
+function hideLoginScreen() {
+    const el = document.getElementById('login-screen');
+    if (el) el.style.display = 'none';
+}
+
+async function handleLogin(event) {
+    event.preventDefault();
+    const passInput = document.getElementById('admin-pass-input').value.trim();
+    const errorEl = document.getElementById('login-error');
+
+    try {
+        const res = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ password: passInput })
+        });
+        const data = await res.json();
+
+        if (data.success && data.token) {
+            authToken = data.token;
+            localStorage.setItem('spanel_token', authToken);
+            hideLoginScreen();
+            loadSites();
+            loadFiles(currentPath);
+            showNotification('Welcome to SPanel Pro Admin Dashboard!');
+        } else {
+            errorEl.innerText = data.error || 'Invalid admin password!';
+            errorEl.style.display = 'block';
+        }
+    } catch (e) {
+        errorEl.innerText = 'Login server error.';
+        errorEl.style.display = 'block';
+    }
+}
 
 // Navigation Handling
 function initNavigation() {
@@ -37,7 +102,6 @@ async function loadSites() {
     const tbody = document.getElementById('sites-table-body');
     if (!tbody) return;
 
-    // Active sites state (Real VPS Production Sites)
     const defaultSites = [
         { domain: 'pos.stech.asia', type: 'Pandora POS App Server', root: 'Proxy :4173', ssl: true, status: 'Active' },
         { domain: 'panel.stech.asia', type: 'SPanel Control Panel', root: 'Proxy :5050', ssl: true, status: 'Active' },
@@ -67,7 +131,7 @@ async function loadSites() {
             <td><span class="status-badge active"><i class="fa-solid fa-check"></i> ${site.status}</span></td>
             <td>
                 <button class="btn-icon-sm" title="Delete Site" onclick="deleteSite(${index})"><i class="fa-solid fa-trash text-danger"></i></button>
-                <button class="btn-icon-sm text-primary" title="Open Site" onclick="window.open('http://${site.domain}', '_blank')"><i class="fa-solid fa-external-link"></i></button>
+                <button class="btn-icon-sm text-primary" title="Open Site" onclick="window.open('https://${site.domain}', '_blank')"><i class="fa-solid fa-external-link"></i></button>
             </td>
         </tr>
     `).join('');
@@ -88,7 +152,10 @@ async function submitCreateSite() {
     try {
         const res = await fetch('/api/create-site', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
             body: JSON.stringify({ domain: domainInput, type: appType })
         });
         const data = await res.json();
@@ -120,7 +187,10 @@ async function issueSsl(domainName) {
     try {
         const res = await fetch('/api/issue-ssl', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
             body: JSON.stringify({ domain: domainName })
         });
         const data = await res.json();
@@ -157,7 +227,9 @@ async function loadFiles(pathDir = '/var/www') {
     }
 
     try {
-        const res = await fetch(`/api/files?path=${encodeURIComponent(pathDir)}`);
+        const res = await fetch(`/api/files?path=${encodeURIComponent(pathDir)}`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
         const data = await res.json();
 
         if (data.success && data.files) {
@@ -187,7 +259,10 @@ async function editFile(filePath) {
     try {
         const res = await fetch('/api/file/read', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
             body: JSON.stringify({ filePath })
         });
         const data = await res.json();
@@ -205,7 +280,10 @@ async function editFile(filePath) {
 async function saveFile(filePath, content) {
     const res = await fetch('/api/file/save', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
         body: JSON.stringify({ filePath, content })
     });
     const data = await res.json();
@@ -226,7 +304,6 @@ function closeModal(id) {
     if (modal) modal.style.display = 'none';
 }
 
-// Databases & Services Placeholders
 function loadDatabases() {}
 function loadServices() {}
 

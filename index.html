@@ -16,6 +16,27 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="dark-theme">
+    <!-- Admin Login Gateway Modal -->
+    <div class="login-backdrop" id="login-screen">
+        <div class="login-card">
+            <div class="login-logo">
+                <i class="fa-solid fa-shield-halved text-warning"></i>
+                <h2>SPanel Pro</h2>
+                <p>Enterprise VPS Control Panel • 167.172.79.75</p>
+            </div>
+            <form onsubmit="handleLogin(event)">
+                <div class="form-group">
+                    <label><i class="fa-solid fa-lock"></i> Admin Password</label>
+                    <input type="password" id="admin-pass-input" class="form-control" placeholder="Enter admin password..." required autofocus>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">
+                    <i class="fa-solid fa-key"></i> Unlock Dashboard
+                </button>
+            </form>
+            <div id="login-error" class="login-error-msg"></div>
+        </div>
+    </div>
+
     <div class="app-container">
         <!-- Sidebar Navigation -->
         <aside class="sidebar">

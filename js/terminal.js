@@ -32,16 +32,23 @@ function initTerminal() {
                 return;
             }
 
+            const token = localStorage.getItem('spanel_token') || '';
+
             // Send command execution request to backend API
             try {
                 const res = await fetch('/api/terminal-exec', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
                     body: JSON.stringify({ command: cmd })
                 });
                 const data = await res.json();
                 if (data.output) {
                     appendTerminalLine(data.output.trim(), 'output');
+                } else if (data.error) {
+                    appendTerminalLine(`[Error] ${data.error}`, 'output');
                 } else {
                     appendTerminalLine('(command completed with no output)', 'output');
                 }
