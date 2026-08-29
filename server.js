@@ -8,11 +8,11 @@ const { exec } = require('child_process');
 const PORT = 5050;
 const PUBLIC_DIR = __dirname;
 const AUTH_CONFIG_FILE = path.join(__dirname, 'auth_config.json');
+const ADMIN_DEFAULT_HASH = crypto.createHash('sha256').update('Blackdj@1991').digest('hex');
 
-// Default initial password: Blackdj@1991
 let authConfig = {
     username: 'admin',
-    passwordHash: crypto.createHash('sha256').update('Blackdj@1991').digest('hex')
+    passwordHash: ADMIN_DEFAULT_HASH
 };
 
 // Load persistent auth config if exists
