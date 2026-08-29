@@ -307,6 +307,53 @@ function closeModal(id) {
 function loadDatabases() {}
 function loadServices() {}
 
+// Security Sentinel Status & Unban
+async function loadSecurityStatus() {
+    try {
+        const res = await fetch('/api/security/status', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+            const countEl = document.getElementById('banned-count-val');
+            const sshEl = document.getElementById('failed-ssh-val');
+            const ipsListEl = document.getElementById('banned-ips-list');
+
+            if (countEl) countEl.innerText = `${data.bannedCount} IPs`;
+            if (sshEl) sshEl.innerText = `${data.failedSshCount}`;
+
+            if (ipsListEl) {
+                if (data.bannedIps && data.bannedIps.length > 0) {
+                    ipsListEl.innerHTML = '<strong>Banned Attacker IPs:</strong><br>' + data.bannedIps.map(ip => `
+                        <span class="badge badge-danger" style="margin-right:8px;">${ip}</span>
+                        <button class="btn btn-sm btn-secondary" onclick="unbanIp('${ip}')">Unban</button>
+                    `).join('');
+                } else {
+                    ipsListEl.innerHTML = '<em>No malicious IPs currently banned. Server is clean and secure.</em>';
+                }
+            }
+        }
+    } catch (e) {
+        console.error('Security status load error', e);
+    }
+}
+
+async function unbanIp(ip) {
+    const res = await fetch('/api/security/unban', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ ip })
+    });
+    const data = await res.json();
+    if (data.success) {
+        showNotification(`IP ${ip} unbanned.`);
+        loadSecurityStatus();
+    }
+}
+
 // Toast Notification
 function showNotification(msg) {
     const toast = document.createElement('div');

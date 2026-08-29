@@ -8,11 +8,9 @@ const { exec } = require('child_process');
 const PORT = 5050;
 const PUBLIC_DIR = __dirname;
 
-// Production Admin Password & Permanent API Key for External AI Agents / Automation
 const ADMIN_PASSWORD_HASH = crypto.createHash('sha256').update(process.env.SPANEL_PASS || 'admin123').digest('hex');
 const PERMANENT_API_KEY = process.env.SPANEL_API_KEY || 'spanel_sk_live_998877665544332211';
 
-// Active Auth Tokens Store
 const activeTokens = new Set();
 
 const mimeTypes = {
@@ -48,11 +46,9 @@ function runCmd(cmd) {
 }
 
 function isAuthorized(req) {
-    // 1. Check Permanent API Key for AI Agents (X-API-Key Header)
     const apiKey = req.headers['x-api-key'] || '';
     if (apiKey === PERMANENT_API_KEY) return true;
 
-    // 2. Check Bearer Token for Logged-in UI Sessions
     const authHeader = req.headers['authorization'] || '';
     const token = authHeader.replace('Bearer ', '').trim();
     return activeTokens.has(token);
@@ -87,7 +83,7 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ error: 'Unauthorized. Valid Admin Password or X-API-Key header required.' }));
         }
 
-        // 1. Live System Metrics Stats
+        // 1. Get Live System Metrics Stats
         if (req.url === '/api/stats' && req.method === 'GET') {
             const totalMem = os.totalmem();
             const freeMem = os.freemem();
@@ -244,7 +240,36 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 7. SSH Terminal Execution
+        // 7. Security Sentinel Status & Firewall Rules
+        if (req.url === '/api/security/status' && req.method === 'GET') {
+            const fail2banRes = await runCmd("fail2ban-client status sshd");
+            const ufwRes = await runCmd("ufw status numbered");
+            const failedLoginsRes = await runCmd("grep 'Failed password' /var/log/auth.log 2>/dev/null | wc -l || echo 0");
+
+            const bannedIpsMatch = (fail2banRes.stdout || '').match(/Banned IP list:\s*(.*)/);
+            const bannedIps = bannedIpsMatch && bannedIpsMatch[1] ? bannedIpsMatch[1].trim().split(/\s+/).filter(Boolean) : [];
+
+            return res.end(JSON.stringify({
+                success: true,
+                fail2banActive: !fail2banRes.error,
+                bannedIps: bannedIps,
+                bannedCount: bannedIps.length,
+                failedSshCount: parseInt((failedLoginsRes.stdout || '0').trim(), 10) || 0,
+                ufwStatus: ufwRes.stdout || ufwRes.stderr
+            }));
+        }
+
+        // 8. Security Sentinel: Unban IP
+        if (req.url === '/api/security/unban' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const ip = (body.ip || '').trim();
+            if (!ip) return res.end(JSON.stringify({ success: false, error: 'IP Address is required' }));
+
+            const unbanRes = await runCmd(`fail2ban-client set sshd unbanip ${ip}`);
+            return res.end(JSON.stringify({ success: !unbanRes.error, output: unbanRes.stdout || unbanRes.stderr }));
+        }
+
+        // 9. SSH Terminal Execution
         if (req.url === '/api/terminal-exec' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const cmd = body.command;
