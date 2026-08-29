@@ -8,8 +8,9 @@ const { exec } = require('child_process');
 const PORT = 5050;
 const PUBLIC_DIR = __dirname;
 
-// Production Admin Password (Default: admin123, or SPackAdmin2026!)
+// Production Admin Password & Permanent API Key for External AI Agents / Automation
 const ADMIN_PASSWORD_HASH = crypto.createHash('sha256').update(process.env.SPANEL_PASS || 'admin123').digest('hex');
+const PERMANENT_API_KEY = process.env.SPANEL_API_KEY || 'spanel_sk_live_998877665544332211';
 
 // Active Auth Tokens Store
 const activeTokens = new Set();
@@ -47,6 +48,11 @@ function runCmd(cmd) {
 }
 
 function isAuthorized(req) {
+    // 1. Check Permanent API Key for AI Agents (X-API-Key Header)
+    const apiKey = req.headers['x-api-key'] || '';
+    if (apiKey === PERMANENT_API_KEY) return true;
+
+    // 2. Check Bearer Token for Logged-in UI Sessions
     const authHeader = req.headers['authorization'] || '';
     const token = authHeader.replace('Bearer ', '').trim();
     return activeTokens.has(token);
@@ -64,7 +70,7 @@ const server = http.createServer(async (req, res) => {
             if (passHash === ADMIN_PASSWORD_HASH) {
                 const token = crypto.randomBytes(24).toString('hex');
                 activeTokens.add(token);
-                return res.end(JSON.stringify({ success: true, token }));
+                return res.end(JSON.stringify({ success: true, token, apiKey: PERMANENT_API_KEY }));
             } else {
                 return res.end(JSON.stringify({ success: false, error: 'Invalid password' }));
             }
@@ -78,7 +84,7 @@ const server = http.createServer(async (req, res) => {
         // Protect all sensitive API endpoints
         if (!isAuthorized(req)) {
             res.statusCode = 401;
-            return res.end(JSON.stringify({ error: 'Unauthorized. Admin login required.' }));
+            return res.end(JSON.stringify({ error: 'Unauthorized. Valid Admin Password or X-API-Key header required.' }));
         }
 
         // 1. Live System Metrics Stats
