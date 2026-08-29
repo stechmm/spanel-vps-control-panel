@@ -22,17 +22,19 @@
             <div class="login-logo">
                 <i class="fa-solid fa-shield-halved text-warning"></i>
                 <h2>SPanel Pro</h2>
-                <p>Enterprise VPS Control Panel • 167.172.79.75</p>
+                <p>Enterprise Secure VPS Control Panel</p>
             </div>
             <form onsubmit="handleLogin(event)">
                 <div class="form-group">
                     <label><i class="fa-solid fa-lock"></i> Admin Password</label>
-                    <div style="position: relative;">
-                        <input type="password" id="admin-pass-input" class="form-control" placeholder="Enter admin password..." required autofocus style="padding-right: 40px;">
-                        <i class="fa-solid fa-eye" id="toggle-pass-eye" onclick="togglePasswordVisibility()" style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #9ca3af;" title="Show/Hide Password"></i>
+                    <div class="password-input-wrapper">
+                        <input type="password" id="admin-pass-input" class="form-control" placeholder="Enter admin password..." required autofocus>
+                        <button type="button" class="eye-toggle-btn" onclick="togglePasswordVisibility()" title="Show/Hide Password">
+                            <i class="fa-solid fa-eye" id="toggle-pass-eye"></i>
+                        </button>
                     </div>
                 </div>
-                <button type="submit" class="btn btn-primary btn-block" style="margin-top: 10px;">
+                <button type="submit" class="btn btn-primary btn-block" style="margin-top: 16px;">
                     <i class="fa-solid fa-key"></i> Unlock Dashboard
                 </button>
             </form>
