@@ -1,5 +1,5 @@
 /**
- * NovaPanel - Full-Featured VPS Control Panel (Live REST API Connected)
+ * SPanel - Full-Featured VPS Control Panel (Live REST API Connected)
  */
 
 let currentPath = '/var/www';
@@ -40,8 +40,8 @@ async function loadSites() {
     // Active sites state
     const defaultSites = [
         { domain: 'pos.stech.asia', type: 'Pandora POS', root: 'Proxy :4173', ssl: true, status: 'Active' },
-        { domain: 'panel.stech.asia', type: 'NovaPanel', root: 'Proxy :5050', ssl: true, status: 'Active' },
-        { domain: 'stech.asia', type: 'Main Website', root: '/var/www/stech.asia', ssl: false, status: 'Active' }
+        { domain: 'panel.stech.asia', type: 'SPanel Control Panel', root: 'Proxy :5050', ssl: true, status: 'Active' },
+        { domain: 'stech.asia', type: 'Main Website', root: '/var/www/stech.asia', ssl: true, status: 'Active' }
     ];
 
     const localSites = JSON.parse(localStorage.getItem('novapanel_sites')) || defaultSites;
