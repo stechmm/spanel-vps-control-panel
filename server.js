@@ -2,10 +2,12 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
+const crypto = require('crypto');
 const { exec } = require('child_process');
 
 const PORT = 5050;
 const PUBLIC_DIR = __dirname;
+const ADMIN_PASSWORD_HASH = crypto.createHash('sha256').update(process.env.SPANEL_PASS || 'admin123').digest('hex');
 
 const mimeTypes = {
     '.html': 'text/html',
@@ -46,9 +48,20 @@ const server = http.createServer(async (req, res) => {
     if (req.url.startsWith('/api/')) {
         res.setHeader('Content-Type', 'application/json');
 
+        // Admin Auth Login Check
+        if (req.url === '/api/login' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const passHash = crypto.createHash('sha256').update(body.password || '').digest('hex');
+            if (passHash === ADMIN_PASSWORD_HASH) {
+                const token = crypto.randomBytes(24).toString('hex');
+                return res.end(JSON.stringify({ success: true, token }));
+            } else {
+                return res.end(JSON.stringify({ success: false, error: 'Invalid admin password' }));
+            }
+        }
+
         // 1. Get Live System Metrics Stats
         if (req.url === '/api/stats' && req.method === 'GET') {
-            const memoryUsage = process.memoryUsage();
             const totalMem = os.totalmem();
             const freeMem = os.freemem();
             const cpuLoad = os.loadavg();
@@ -111,7 +124,7 @@ const server = http.createServer(async (req, res) => {
             // Create directory & sample index.html
             await runCmd(`mkdir -p ${siteDir}`);
             if (!fs.existsSync(`${siteDir}/index.html`)) {
-                fs.writeFileSync(`${siteDir}/index.html`, `<h1>Welcome to ${domain}</h1><p>Hosted via NovaPanel</p>`);
+                fs.writeFileSync(`${siteDir}/index.html`, `<h1>Welcome to ${domain}</h1><p>Hosted via SPanel Pro</p>`);
             }
 
             // Write Nginx config & reload
@@ -253,5 +266,5 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`SPanel Control Panel Server running at http://0.0.0.0:${PORT}/`);
+    console.log(`SPanel Production Server running at http://0.0.0.0:${PORT}/`);
 });
