@@ -530,6 +530,41 @@ async function unbanIp(ip) {
     }
 }
 
+// Change Admin Credentials Function
+async function handleChangeCredentials(event) {
+    event.preventDefault();
+    const newUsername = document.getElementById('change-user-input').value.trim();
+    const currentPassword = document.getElementById('current-pass-input').value.trim();
+    const newPassword = document.getElementById('new-pass-input').value.trim();
+
+    if (!currentPassword || !newPassword) {
+        alert('Please fill in both current and new password fields.');
+        return;
+    }
+
+    try {
+        const res = await fetch('/api/security/change-credentials', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ currentPassword, newUsername, newPassword })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            alert('Admin Password updated successfully! Please log in again with your new password.');
+            localStorage.removeItem('spanel_token');
+            location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (e) {
+        alert('Server error updating password.');
+    }
+}
+
 // Toast Notification
 function showNotification(msg) {
     const toast = document.createElement('div');

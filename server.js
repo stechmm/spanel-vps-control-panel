@@ -7,10 +7,27 @@ const { exec } = require('child_process');
 
 const PORT = 5050;
 const PUBLIC_DIR = __dirname;
+const AUTH_CONFIG_FILE = path.join(__dirname, 'auth_config.json');
 
-const ADMIN_PASSWORD_HASH = crypto.createHash('sha256').update(process.env.SPANEL_PASS || 'admin123').digest('hex');
+// Default initial password: Blackdj@1991
+let authConfig = {
+    username: 'admin',
+    passwordHash: crypto.createHash('sha256').update('Blackdj@1991').digest('hex')
+};
+
+// Load persistent auth config if exists
+if (fs.existsSync(AUTH_CONFIG_FILE)) {
+    try {
+        const loadedConfig = JSON.parse(fs.readFileSync(AUTH_CONFIG_FILE, 'utf-8'));
+        if (loadedConfig.passwordHash) {
+            authConfig = loadedConfig;
+        }
+    } catch (e) {}
+} else {
+    fs.writeFileSync(AUTH_CONFIG_FILE, JSON.stringify(authConfig, null, 2));
+}
+
 const PERMANENT_API_KEY = process.env.SPANEL_API_KEY || 'spanel_sk_live_998877665544332211';
-
 const activeTokens = new Set();
 
 const mimeTypes = {
@@ -63,10 +80,17 @@ const server = http.createServer(async (req, res) => {
         if (req.url === '/api/login' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const passHash = crypto.createHash('sha256').update(body.password || '').digest('hex');
-            if (passHash === ADMIN_PASSWORD_HASH) {
+            const reqUsername = body.username || 'admin';
+
+            if (passHash === authConfig.passwordHash) {
                 const token = crypto.randomBytes(24).toString('hex');
                 activeTokens.add(token);
-                return res.end(JSON.stringify({ success: true, token, apiKey: PERMANENT_API_KEY }));
+                return res.end(JSON.stringify({
+                    success: true,
+                    token,
+                    username: authConfig.username,
+                    apiKey: PERMANENT_API_KEY
+                }));
             } else {
                 return res.end(JSON.stringify({ success: false, error: 'Invalid password' }));
             }
@@ -74,13 +98,43 @@ const server = http.createServer(async (req, res) => {
 
         // Verify Authentication Status
         if (req.url === '/api/auth-check' && req.method === 'GET') {
-            return res.end(JSON.stringify({ authenticated: isAuthorized(req) }));
+            return res.end(JSON.stringify({ authenticated: isAuthorized(req), username: authConfig.username }));
         }
 
         // Protect all sensitive API endpoints
         if (!isAuthorized(req)) {
             res.statusCode = 401;
             return res.end(JSON.stringify({ error: 'Unauthorized. Valid Admin Password or X-API-Key header required.' }));
+        }
+
+        // Change Admin Credentials (Username & Password)
+        if (req.url === '/api/security/change-credentials' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const currentPass = body.currentPassword || '';
+            const newUsername = (body.newUsername || '').trim() || authConfig.username;
+            const newPassword = body.newPassword || '';
+
+            const currentHash = crypto.createHash('sha256').update(currentPass).digest('hex');
+
+            if (currentHash !== authConfig.passwordHash) {
+                return res.end(JSON.stringify({ success: false, error: 'Current password is incorrect' }));
+            }
+
+            if (newPassword.length < 6) {
+                return res.end(JSON.stringify({ success: false, error: 'New password must be at least 6 characters' }));
+            }
+
+            const newHash = crypto.createHash('sha256').update(newPassword).digest('hex');
+            authConfig.username = newUsername;
+            authConfig.passwordHash = newHash;
+
+            // Save persistently to JSON file
+            fs.writeFileSync(AUTH_CONFIG_FILE, JSON.stringify(authConfig, null, 2));
+
+            return res.end(JSON.stringify({
+                success: true,
+                message: 'Admin Username & Password updated successfully!'
+            }));
         }
 
         // 1. Get Live System Metrics Stats
@@ -226,7 +280,7 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 6. File Manager: Save / Overwrite File Content
+        // 6. File Manager: Save File
         if (req.url === '/api/file/save' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const filePath = body.filePath;
@@ -240,7 +294,7 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 7. File Manager: Create Folder (mkdir)
+        // 7. File Manager: Create Folder
         if (req.url === '/api/file/mkdir' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const folderPath = body.folderPath;
@@ -256,7 +310,7 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 8. File Manager: Delete File or Folder
+        // 8. File Manager: Delete File/Folder
         if (req.url === '/api/file/delete' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const targetPath = body.targetPath;
@@ -268,7 +322,7 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ success: !delRes.error, output: delRes.stdout || delRes.stderr }));
         }
 
-        // 9. File Manager: Extract ZIP Archive
+        // 9. File Manager: Unzip Archive
         if (req.url === '/api/file/unzip' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const zipPath = body.zipPath;
@@ -282,7 +336,7 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ success: !unzipRes.error, output: unzipRes.stdout || unzipRes.stderr }));
         }
 
-        // 10. File Manager: Upload File (Base64 or Raw)
+        // 10. File Manager: Upload File
         if (req.url === '/api/file/upload' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const targetDir = body.targetDir || '/var/www';
@@ -326,12 +380,10 @@ const server = http.createServer(async (req, res) => {
 
             const deployRes = await runCmd(gitCmd, deployDir);
 
-            // Optional npm install & build if package.json exists
             if (fs.existsSync(`${deployDir}/package.json`)) {
                 await runCmd(`npm install`, deployDir);
             }
 
-            // Reload Nginx
             await runCmd(`systemctl reload nginx`);
 
             return res.end(JSON.stringify({

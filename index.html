@@ -342,6 +342,29 @@
                     <div class="security-grid">
                         <div class="card" style="margin-bottom: 20px;">
                             <div class="card-header">
+                                <h3><i class="fa-solid fa-key text-warning"></i> Change Admin Username & Password</h3>
+                            </div>
+                            <form onsubmit="handleChangeCredentials(event)" style="display:flex; flex-direction:column; gap:14px; max-width:420px;">
+                                <div class="form-group">
+                                    <label>Admin Username</label>
+                                    <input type="text" id="change-user-input" class="form-control" value="admin" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Current Admin Password</label>
+                                    <input type="password" id="current-pass-input" class="form-control" placeholder="Current password..." required>
+                                </div>
+                                <div class="form-group">
+                                    <label>New Admin Password</label>
+                                    <input type="password" id="new-pass-input" class="form-control" placeholder="New password (min 6 chars)..." required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="fa-solid fa-floppy-disk"></i> Update Admin Password
+                                </button>
+                            </form>
+                        </div>
+
+                        <div class="card" style="margin-bottom: 20px;">
+                            <div class="card-header">
                                 <h3><i class="fa-solid fa-user-lock text-warning"></i> Fail2Ban Auto-Ban Sentinel</h3>
                                 <button class="btn btn-sm btn-secondary" onclick="loadSecurityStatus()"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
                             </div>
