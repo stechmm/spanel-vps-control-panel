@@ -47,6 +47,22 @@ function hideLoginScreen() {
     if (el) el.style.display = 'none';
 }
 
+function togglePasswordVisibility() {
+    const input = document.getElementById('admin-pass-input');
+    const eye = document.getElementById('toggle-pass-eye');
+    if (!input || !eye) return;
+
+    if (input.type === 'password') {
+        input.type = 'text';
+        eye.className = 'fa-solid fa-eye-slash';
+        eye.style.color = '#6366f1';
+    } else {
+        input.type = 'password';
+        eye.className = 'fa-solid fa-eye';
+        eye.style.color = '#9ca3af';
+    }
+}
+
 async function handleLogin(event) {
     event.preventDefault();
     const passInput = document.getElementById('admin-pass-input').value.trim();

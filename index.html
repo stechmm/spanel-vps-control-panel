@@ -27,9 +27,12 @@
             <form onsubmit="handleLogin(event)">
                 <div class="form-group">
                     <label><i class="fa-solid fa-lock"></i> Admin Password</label>
-                    <input type="password" id="admin-pass-input" class="form-control" placeholder="Enter admin password..." required autofocus>
+                    <div style="position: relative;">
+                        <input type="password" id="admin-pass-input" class="form-control" placeholder="Enter admin password..." required autofocus style="padding-right: 40px;">
+                        <i class="fa-solid fa-eye" id="toggle-pass-eye" onclick="togglePasswordVisibility()" style="position: absolute; right: 14px; top: 50%; transform: translateY(-50%); cursor: pointer; color: #9ca3af;" title="Show/Hide Password"></i>
+                    </div>
                 </div>
-                <button type="submit" class="btn btn-primary btn-block">
+                <button type="submit" class="btn btn-primary btn-block" style="margin-top: 10px;">
                     <i class="fa-solid fa-key"></i> Unlock Dashboard
                 </button>
             </form>
