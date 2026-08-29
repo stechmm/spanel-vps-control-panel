@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPanel Pro - VPS & Server Management Dashboard</title>
+    <title>SPanel Pro - Ultra-Lightweight VPS Control Panel</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains-Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="css/style.css">
-    <!-- Chart.js for real-time graphs -->
+    <!-- Chart.js for lightweight live graphs -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="dark-theme">
@@ -21,18 +21,18 @@
         <aside class="sidebar">
             <div class="brand">
                 <div class="logo-icon">
-                    <i class="fa-solid fa-server"></i>
+                    <i class="fa-solid fa-bolt text-warning"></i>
                 </div>
                 <div class="brand-text">
-                    <h2>SPanel</h2>
-                    <span class="badge droplet-badge"><i class="fa-brands fa-digital-ocean"></i> DigitalOcean VPS</span>
+                    <h2>SPanel Pro</h2>
+                    <span class="badge droplet-badge"><i class="fa-solid fa-feather"></i> Ultra-Lightweight</span>
                 </div>
             </div>
 
             <div class="server-status-card">
                 <div class="status-header">
                     <span class="status-indicator online"></span>
-                    <span class="server-name" id="current-server-name">do-sgp1-vps</span>
+                    <span class="server-name" id="current-server-name">stech-vps</span>
                 </div>
                 <div class="server-meta">
                     <span id="current-server-ip"><i class="fa-solid fa-network-wired"></i> 167.172.79.75</span>
@@ -41,55 +41,35 @@
             </div>
 
             <nav class="nav-menu">
-                <div class="nav-section">MAIN MENU</div>
+                <div class="nav-section">ESSENTIAL MODULES</div>
                 <a href="#dashboard" class="nav-item active" data-tab="dashboard">
                     <i class="fa-solid fa-gauge-high"></i>
-                    <span>Dashboard & Overview</span>
+                    <span>Overview & Metrics</span>
                 </a>
                 <a href="#sites" class="nav-item" data-tab="sites">
                     <i class="fa-solid fa-globe"></i>
-                    <span>Websites & Domains</span>
-                </a>
-                <a href="#databases" class="nav-item" data-tab="databases">
-                    <i class="fa-solid fa-database"></i>
-                    <span>Databases (MySQL)</span>
+                    <span>Websites & App Proxies</span>
                 </a>
                 <a href="#filemanager" class="nav-item" data-tab="filemanager">
                     <i class="fa-solid fa-folder-tree"></i>
-                    <span>File Manager</span>
-                </a>
-                <a href="#services" class="nav-item" data-tab="services">
-                    <i class="fa-solid fa-sliders"></i>
-                    <span>System Services</span>
-                </a>
-
-                <div class="nav-section">TOOLS & DEPLOYMENT</div>
-                <a href="#terminal" class="nav-item" data-tab="terminal">
-                    <i class="fa-solid fa-terminal"></i>
-                    <span>SSH Web Terminal</span>
-                </a>
-                <a href="#apps" class="nav-item" data-tab="apps">
-                    <i class="fa-solid fa-cubes"></i>
-                    <span>1-Click App Installer</span>
+                    <span>File Manager & Editor</span>
                 </a>
                 <a href="#security" class="nav-item" data-tab="security">
                     <i class="fa-solid fa-shield-halved"></i>
-                    <span>Firewall & SSL</span>
+                    <span>SSL & Firewall</span>
                 </a>
-
-                <div class="nav-section">SETTINGS</div>
-                <a href="#settings" class="nav-item" data-tab="settings">
-                    <i class="fa-solid fa-gear"></i>
-                    <span>DO API & Credentials</span>
+                <a href="#terminal" class="nav-item" data-tab="terminal">
+                    <i class="fa-solid fa-terminal"></i>
+                    <span>SSH Web Console</span>
                 </a>
             </nav>
 
             <div class="sidebar-footer">
                 <div class="user-info">
-                    <i class="fa-solid fa-circle-user avatar"></i>
+                    <i class="fa-solid fa-user-shield avatar"></i>
                     <div class="user-details">
-                        <span class="user-name">root@vps-admin</span>
-                        <span class="user-role">Super Admin</span>
+                        <span class="user-name">root@167.172.79.75</span>
+                        <span class="user-role">S-Tech Systems</span>
                     </div>
                 </div>
             </div>
@@ -97,26 +77,20 @@
 
         <!-- Main Content Area -->
         <main class="main-content">
-            <!-- Top Navbar -->
+            <!-- Topbar Header -->
             <header class="topbar">
                 <div class="topbar-left">
                     <button id="sidebar-toggle" class="btn-icon"><i class="fa-solid fa-bars"></i></button>
                     <div class="search-box">
                         <i class="fa-solid fa-magnifying-glass"></i>
-                        <input type="text" placeholder="Search domains, DBs, services, or commands (Ctrl + K)...">
+                        <input type="text" placeholder="Search domains, files, commands...">
                     </div>
                 </div>
                 <div class="topbar-right">
                     <div class="vps-quick-actions">
-                        <button class="btn btn-outline-danger btn-sm" id="btn-reboot">
-                            <i class="fa-solid fa-power-off"></i> Reboot Server
+                        <button class="btn btn-primary btn-sm" onclick="openAddSiteModal()">
+                            <i class="fa-solid fa-plus"></i> Add Domain / App
                         </button>
-                        <button class="btn btn-primary btn-sm" id="btn-add-site">
-                            <i class="fa-solid fa-plus"></i> Add Website
-                        </button>
-                    </div>
-                    <div class="notifications">
-                        <button class="btn-icon badge-notification"><i class="fa-regular fa-bell"></i><span class="dot"></span></button>
                     </div>
                 </div>
             </header>
@@ -124,15 +98,15 @@
             <!-- Dynamic View Containers -->
             <div class="content-body">
                 
-                <!-- TAB 1: DASHBOARD -->
+                <!-- TAB 1: OVERVIEW & METRICS -->
                 <section id="tab-dashboard" class="tab-content active">
                     <div class="page-title-bar">
                         <div>
-                            <h1>Server Dashboard</h1>
-                            <p class="subtitle">Real-time resource monitor & system health metrics</p>
+                            <h1>System Health & Resources</h1>
+                            <p class="subtitle">Optimized for 1GB RAM DigitalOcean VPS</p>
                         </div>
                         <div class="quick-info-pill">
-                            <i class="fa-solid fa-clock"></i> Uptime: <span id="server-uptime">14 Days, 14 Hours, 12 Mins</span>
+                            <i class="fa-solid fa-clock"></i> Uptime: <span id="server-uptime">14 Days, 14 Hours</span>
                         </div>
                     </div>
 
@@ -143,12 +117,12 @@
                                 <i class="fa-solid fa-microchip"></i>
                             </div>
                             <div class="stat-info">
-                                <span class="stat-label">CPU Usage</span>
-                                <h2 class="stat-value" id="cpu-usage-val">23%</h2>
+                                <span class="stat-label">CPU Load</span>
+                                <h2 class="stat-value" id="cpu-usage-val">0.23</h2>
                                 <div class="progress-bar-wrap">
                                     <div class="progress-bar cpu-bar" id="cpu-bar" style="width: 23%;"></div>
                                 </div>
-                                <span class="stat-sub">1 vCPU (Intel Singapore Datacenter)</span>
+                                <span class="stat-sub">1 vCPU Intel SGP1</span>
                             </div>
                         </div>
 
@@ -160,9 +134,9 @@
                                 <span class="stat-label">RAM Memory</span>
                                 <h2 class="stat-value" id="ram-usage-val">407 MB / 961 MB</h2>
                                 <div class="progress-bar-wrap">
-                                    <div class="progress-bar ram-bar" id="ram-bar" style="width: 42.3%;"></div>
+                                    <div class="progress-bar ram-bar" id="ram-bar" style="width: 42%;"></div>
                                 </div>
-                                <span class="stat-sub">42.3% Used • 553 MB Free</span>
+                                <span class="stat-sub">553 MB Free (Ultra Light)</span>
                             </div>
                         </div>
 
@@ -171,35 +145,21 @@
                                 <i class="fa-solid fa-hard-drive"></i>
                             </div>
                             <div class="stat-info">
-                                <span class="stat-label">SSD Disk Space</span>
-                                <h2 class="stat-value" id="disk-usage-val">4.2 GB / 33.0 GB</h2>
+                                <span class="stat-label">SSD Storage</span>
+                                <h2 class="stat-value" id="disk-usage-val">4.2 GB / 33 GB</h2>
                                 <div class="progress-bar-wrap">
-                                    <div class="progress-bar disk-bar" id="disk-bar" style="width: 12.7%;"></div>
+                                    <div class="progress-bar disk-bar" id="disk-bar" style="width: 13%;"></div>
                                 </div>
-                                <span class="stat-sub">12.7% Used • 29 GB Free</span>
-                            </div>
-                        </div>
-
-                        <div class="stat-card">
-                            <div class="stat-icon net-bg">
-                                <i class="fa-solid fa-chart-line"></i>
-                            </div>
-                            <div class="stat-info">
-                                <span class="stat-label">Network Bandwidth</span>
-                                <h2 class="stat-value" id="net-usage-val">1.2 MB/s</h2>
-                                <div class="progress-bar-wrap">
-                                    <div class="progress-bar net-bar" id="net-bar" style="width: 15%;"></div>
-                                </div>
-                                <span class="stat-sub">In: 840 KB/s | Out: 380 KB/s</span>
+                                <span class="stat-sub">29 GB Storage Available</span>
                             </div>
                         </div>
                     </div>
 
-                    <!-- Live Charts Row -->
+                    <!-- Live Chart & Essential Daemons -->
                     <div class="charts-row">
                         <div class="chart-card flex-2">
                             <div class="card-header">
-                                <h3><i class="fa-solid fa-chart-area"></i> Real-time CPU & Memory Activity</h3>
+                                <h3><i class="fa-solid fa-chart-line"></i> Real-time CPU & RAM Usage</h3>
                                 <div class="chart-controls">
                                     <span class="pulse-indicator"></span> Live Data Syncing
                                 </div>
@@ -211,146 +171,36 @@
 
                         <div class="chart-card flex-1">
                             <div class="card-header">
-                                <h3><i class="fa-solid fa-cubes-stacked"></i> Service Status</h3>
+                                <h3><i class="fa-solid fa-server"></i> Essential Services</h3>
                             </div>
                             <div class="services-list-mini">
                                 <div class="service-item">
-                                    <div class="service-name">
-                                        <i class="fa-brands fa-linux green-icon"></i> Nginx Web Server
-                                    </div>
+                                    <div class="service-name"><i class="fa-solid fa-globe green-icon"></i> Nginx Web Server</div>
                                     <span class="status-badge active"><i class="fa-solid fa-check"></i> Running</span>
                                 </div>
                                 <div class="service-item">
-                                    <div class="service-name">
-                                        <i class="fa-solid fa-database blue-icon"></i> MySQL 8.0 Server
-                                    </div>
+                                    <div class="service-name"><i class="fa-brands fa-node-js green-icon"></i> Node.js Engine</div>
                                     <span class="status-badge active"><i class="fa-solid fa-check"></i> Running</span>
                                 </div>
                                 <div class="service-item">
-                                    <div class="service-name">
-                                        <i class="fa-brands fa-php purple-icon"></i> PHP 8.3-FPM
-                                    </div>
-                                    <span class="status-badge active"><i class="fa-solid fa-check"></i> Running</span>
-                                </div>
-                                <div class="service-item">
-                                    <div class="service-name">
-                                        <i class="fa-brands fa-docker cyan-icon"></i> Docker Engine
-                                    </div>
-                                    <span class="status-badge active"><i class="fa-solid fa-check"></i> Running</span>
-                                </div>
-                                <div class="service-item">
-                                    <div class="service-name">
-                                        <i class="fa-solid fa-bolt orange-icon"></i> Redis Cache
-                                    </div>
-                                    <span class="status-badge active"><i class="fa-solid fa-check"></i> Running</span>
-                                </div>
-                                <div class="service-item">
-                                    <div class="service-name">
-                                        <i class="fa-solid fa-shield-halved text-warning"></i> UFW Firewall
-                                    </div>
+                                    <div class="service-name"><i class="fa-brands fa-docker cyan-icon"></i> Docker Daemon</div>
                                     <span class="status-badge active"><i class="fa-solid fa-check"></i> Active</span>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Installed Sites & Recent Activity -->
-                    <div class="dashboard-bottom-grid">
-                        <div class="card">
-                            <div class="card-header">
-                                <h3><i class="fa-solid fa-globe"></i> Active Websites</h3>
-                                <a href="#sites" class="link-btn">View All Domains</a>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="custom-table">
-                                    <thead>
-                                        <tr>
-                                            <th>Domain Name</th>
-                                            <th>PHP Version</th>
-                                            <th>SSL Status</th>
-                                            <th>Storage</th>
-                                            <th>Action</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr>
-                                            <td>
-                                                <div class="domain-cell">
-                                                    <i class="fa-solid fa-globe icon-site"></i>
-                                                    <div>
-                                                        <strong>mybusiness.com</strong>
-                                                        <small>/var/www/mybusiness.com</small>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td><span class="tag">PHP 8.3</span></td>
-                                            <td><span class="badge-ssl"><i class="fa-solid fa-lock"></i> Let's Encrypt</span></td>
-                                            <td>2.4 GB</td>
-                                            <td>
-                                                <button class="btn-icon-sm" title="Manage"><i class="fa-solid fa-sliders"></i></button>
-                                                <button class="btn-icon-sm text-primary" title="Open Site"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
-                                            </td>
-                                        </tr>
-                                        <tr>
-                                            <td>
-                                                <div class="domain-cell">
-                                                    <i class="fa-solid fa-globe icon-site"></i>
-                                                    <div>
-                                                        <strong>shop.mybusiness.com</strong>
-                                                        <small>/var/www/shop</small>
-                                                    </div>
-                                                </div>
-                                            </td>
-                                            <td><span class="tag">PHP 8.2</span></td>
-                                            <td><span class="badge-ssl"><i class="fa-solid fa-lock"></i> Let's Encrypt</span></td>
-                                            <td>5.8 GB</td>
-                                            <td>
-                                                <button class="btn-icon-sm" title="Manage"><i class="fa-solid fa-sliders"></i></button>
-                                                <button class="btn-icon-sm text-primary" title="Open Site"><i class="fa-solid fa-arrow-up-right-from-square"></i></button>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <div class="card">
-                            <div class="card-header">
-                                <h3><i class="fa-solid fa-clock-rotate-left"></i> System Logs & Audit Trail</h3>
-                            </div>
-                            <div class="audit-logs">
-                                <div class="log-item">
-                                    <div class="log-icon success"><i class="fa-solid fa-key"></i></div>
-                                    <div class="log-content">
-                                        <p>SSL Certificate renewed for <strong>mybusiness.com</strong></p>
-                                        <small>Today at 02:15 AM</small>
-                                    </div>
-                                </div>
-                                <div class="log-item">
-                                    <div class="log-icon info"><i class="fa-solid fa-arrows-rotate"></i></div>
-                                    <div class="log-content">
-                                        <p>Nginx configuration reloaded successfully</p>
-                                        <small>Yesterday at 11:40 PM</small>
-                                    </div>
-                                </div>
-                                <div class="log-item">
-                                    <div class="log-icon success"><i class="fa-solid fa-database"></i></div>
-                                    <div class="log-content">
-                                        <p>Automated Database Backup completed (db_wordpress_prod.sql.gz)</p>
-                                        <small>Yesterday at 04:00 AM</small>
-                                    </div>
+                                <div class="service-item">
+                                    <div class="service-name"><i class="fa-solid fa-shield-halved text-warning"></i> UFW Firewall</div>
+                                    <span class="status-badge active"><i class="fa-solid fa-check"></i> Active</span>
                                 </div>
                             </div>
                         </div>
                     </div>
                 </section>
 
-                <!-- TAB 2: WEBSITES & DOMAINS -->
+                <!-- TAB 2: WEBSITES & APP PROXIES -->
                 <section id="tab-sites" class="tab-content">
                     <div class="page-title-bar">
                         <div>
-                            <h1>Websites & Domain Management</h1>
-                            <p class="subtitle">Host Nginx virtual hosts, reverse proxies, and static sites</p>
+                            <h1>Websites & App Proxies</h1>
+                            <p class="subtitle">Nginx VirtualHosts, Node/Python Reverse Proxies & Domain Routing</p>
                         </div>
                         <button class="btn btn-primary" onclick="openAddSiteModal()">
                             <i class="fa-solid fa-plus"></i> Create New Website
@@ -362,73 +212,37 @@
                             <table class="custom-table">
                                 <thead>
                                     <tr>
-                                        <th>Domain Name</th>
-                                        <th>Type</th>
-                                        <th>Document Root</th>
-                                        <th>SSL Cert</th>
+                                        <th>Domain / Subdomain</th>
+                                        <th>App Type</th>
+                                        <th>Target / Root</th>
+                                        <th>SSL Status</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="sites-table-body">
-                                    <!-- Dynamic rows added by JS -->
+                                    <!-- Populated by JS -->
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </section>
 
-                <!-- TAB 3: DATABASES -->
-                <section id="tab-databases" class="tab-content">
-                    <div class="page-title-bar">
-                        <div>
-                            <h1>Database Management (MySQL / MariaDB)</h1>
-                            <p class="subtitle">Create databases, manage DB users, run phpMyAdmin, export SQL dumps</p>
-                        </div>
-                        <button class="btn btn-primary" onclick="openAddDbModal()">
-                            <i class="fa-solid fa-plus"></i> Create Database
-                        </button>
-                    </div>
-
-                    <div class="card">
-                        <div class="table-responsive">
-                            <table class="custom-table">
-                                <thead>
-                                    <tr>
-                                        <th>Database Name</th>
-                                        <th>DB User</th>
-                                        <th>Host</th>
-                                        <th>Size</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="db-table-body">
-                                    <!-- Dynamic rows -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- TAB 4: FILE MANAGER -->
+                <!-- TAB 3: FILE MANAGER & EDITOR -->
                 <section id="tab-filemanager" class="tab-content">
                     <div class="page-title-bar">
                         <div>
-                            <h1>Web File Manager</h1>
+                            <h1>File Manager & Code Editor</h1>
                             <p class="subtitle">Direct server filesystem browser with built-in code editor</p>
                         </div>
                         <div class="fm-actions">
-                            <button class="btn btn-secondary btn-sm" id="fm-btn-newfile"><i class="fa-solid fa-file-circle-plus"></i> New File</button>
-                            <button class="btn btn-secondary btn-sm" id="fm-btn-newfolder"><i class="fa-solid fa-folder-plus"></i> New Folder</button>
-                            <button class="btn btn-primary btn-sm" id="fm-btn-upload"><i class="fa-solid fa-cloud-arrow-up"></i> Upload</button>
+                            <button class="btn btn-secondary btn-sm" onclick="loadFiles('/var/www')"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
                         </div>
                     </div>
 
                     <div class="file-manager-container card">
                         <div class="fm-breadcrumb" id="fm-path-bar">
-                            <span class="path-segment" data-path="/var/www"><i class="fa-solid fa-house"></i> /var/www</span>
-                            <span class="separator">/</span>
-                            <span class="path-segment active">mybusiness.com</span>
+                            <span class="path-segment"><i class="fa-solid fa-folder-tree"></i> Location: <strong>/var/www</strong></span>
                         </div>
 
                         <div class="fm-grid-list">
@@ -451,26 +265,60 @@
                     </div>
                 </section>
 
-                <!-- TAB 5: SYSTEM SERVICES -->
-                <section id="tab-services" class="tab-content">
+                <!-- TAB 4: SSL & FIREWALL -->
+                <section id="tab-security" class="tab-content">
                     <div class="page-title-bar">
                         <div>
-                            <h1>System Services & Daemons</h1>
-                            <p class="subtitle">Start, stop, restart, or reload systemctl services</p>
+                            <h1>SSL Certificates & Firewall (UFW)</h1>
+                            <p class="subtitle">Certbot Let's Encrypt SSL management & Port Security</p>
                         </div>
                     </div>
 
-                    <div class="services-grid" id="services-grid">
-                        <!-- Populated by JS -->
+                    <div class="security-grid">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3><i class="fa-solid fa-shield"></i> UFW Active Port Rules</h3>
+                            </div>
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Port / Protocol</th>
+                                        <th>Service</th>
+                                        <th>Action</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        <td><strong>22 / TCP</strong></td>
+                                        <td>SSH Console</td>
+                                        <td><span class="badge badge-success">ALLOW</span></td>
+                                        <td>Active</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>80 / TCP</strong></td>
+                                        <td>HTTP Web Server</td>
+                                        <td><span class="badge badge-success">ALLOW</span></td>
+                                        <td>Active</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>443 / TCP</strong></td>
+                                        <td>HTTPS SSL Encryption</td>
+                                        <td><span class="badge badge-success">ALLOW</span></td>
+                                        <td>Active</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </section>
 
-                <!-- TAB 6: TERMINAL -->
+                <!-- TAB 5: TERMINAL CONSOLE -->
                 <section id="tab-terminal" class="tab-content">
                     <div class="page-title-bar">
                         <div>
-                            <h1>Web SSH Terminal Console</h1>
-                            <p class="subtitle">Direct command line execution on your DigitalOcean VPS</p>
+                            <h1>SSH Web Terminal Console</h1>
+                            <p class="subtitle">Direct command line execution on 167.172.79.75</p>
                         </div>
                         <span class="badge badge-success"><i class="fa-solid fa-signal"></i> Connected as root</span>
                     </div>
@@ -486,128 +334,14 @@
                             <button class="btn-icon-sm" id="clear-term" title="Clear Console"><i class="fa-solid fa-eraser"></i></button>
                         </div>
                         <div class="terminal-body" id="terminal-body">
-                            <div class="term-line output">Linux do-sgp1-vps (167.172.79.75) 6.8.0-31-generic #31-Ubuntu SMP x86_64</div>
-                            <div class="term-line output">Welcome to SPanel Web Terminal Console</div>
-                            <div class="term-line output">Connected to DigitalOcean VPS: <span class="term-highlight">167.172.79.75</span></div>
+                            <div class="term-line output">Linux do-sgp1-vps (167.172.79.75) 6.8.0-137-generic #137-Ubuntu x86_64</div>
+                            <div class="term-line output">Welcome to SPanel Pro Lightweight Web Console</div>
+                            <div class="term-line output">Connected to VPS: <span class="term-highlight">167.172.79.75</span></div>
                             <div class="term-prompt-line">
                                 <span class="prompt-text">root@167.172.79.75:~#</span>
                                 <input type="text" id="term-input" autocomplete="off" autofocus spellcheck="false">
                             </div>
                         </div>
-                    </div>
-                </section>
-
-                <!-- TAB 7: 1-CLICK APP INSTALLER -->
-                <section id="tab-apps" class="tab-content">
-                    <div class="page-title-bar">
-                        <div>
-                            <h1>1-Click Application Installer</h1>
-                            <p class="subtitle">Instantly deploy popular web stacks, CMSs, and Docker apps</p>
-                        </div>
-                    </div>
-
-                    <div class="apps-grid">
-                        <div class="app-card">
-                            <div class="app-icon wordpress-icon"><i class="fa-brands fa-wordpress"></i></div>
-                            <h3>WordPress CMS</h3>
-                            <p>World's most popular website and blogging platform with MySQL & PHP 8.3.</p>
-                            <button class="btn btn-primary btn-block" onclick="installApp('WordPress')">Install WordPress</button>
-                        </div>
-
-                        <div class="app-card">
-                            <div class="app-icon phpmyadmin-icon"><i class="fa-solid fa-database"></i></div>
-                            <h3>phpMyAdmin</h3>
-                            <p>Web-based MySQL database browser & administration interface.</p>
-                            <button class="btn btn-primary btn-block" onclick="installApp('phpMyAdmin')">Install phpMyAdmin</button>
-                        </div>
-
-                        <div class="app-card">
-                            <div class="app-icon node-icon"><i class="fa-brands fa-node-js"></i></div>
-                            <h3>Node.js & PM2 Stack</h3>
-                            <p>Node.js environment with PM2 process manager & Nginx reverse proxy configuration.</p>
-                            <button class="btn btn-primary btn-block" onclick="installApp('Node.js PM2')">Install Node Stack</button>
-                        </div>
-
-                        <div class="app-card">
-                            <div class="app-icon docker-icon"><i class="fa-brands fa-docker"></i></div>
-                            <h3>Docker & Compose</h3>
-                            <p>Container engine for running isolated web applications & microservices.</p>
-                            <button class="btn btn-primary btn-block" onclick="installApp('Docker')">Setup Docker</button>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- TAB 8: FIREWALL & SECURITY -->
-                <section id="tab-security" class="tab-content">
-                    <div class="page-title-bar">
-                        <div>
-                            <h1>Firewall (UFW) & SSL Certificates</h1>
-                            <p class="subtitle">Manage allowed ports, IP rules, and free Let's Encrypt SSL certificates</p>
-                        </div>
-                    </div>
-
-                    <div class="security-grid">
-                        <div class="card">
-                            <div class="card-header">
-                                <h3><i class="fa-solid fa-shield"></i> UFW Firewall Rules</h3>
-                                <button class="btn btn-sm btn-primary" onclick="openAddRuleModal()"><i class="fa-solid fa-plus"></i> Add Rule</button>
-                            </div>
-                            <table class="custom-table">
-                                <thead>
-                                    <tr>
-                                        <th>Port / Protocol</th>
-                                        <th>Service</th>
-                                        <th>Action</th>
-                                        <th>Rule ID</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <tr>
-                                        <td><strong>22 / TCP</strong></td>
-                                        <td>SSH Console</td>
-                                        <td><span class="badge badge-success">ALLOW</span></td>
-                                        <td>#1</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>80 / TCP</strong></td>
-                                        <td>HTTP Web</td>
-                                        <td><span class="badge badge-success">ALLOW</span></td>
-                                        <td>#2</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>443 / TCP</strong></td>
-                                        <td>HTTPS SSL</td>
-                                        <td><span class="badge badge-success">ALLOW</span></td>
-                                        <td>#3</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- TAB 9: SETTINGS & DO API -->
-                <section id="tab-settings" class="tab-content">
-                    <div class="page-title-bar">
-                        <div>
-                            <h1>DigitalOcean API & Panel Settings</h1>
-                            <p class="subtitle">Connect DigitalOcean Personal Access Token for remote droplet controls</p>
-                        </div>
-                    </div>
-
-                    <div class="card settings-card">
-                        <div class="form-group">
-                            <label><i class="fa-brands fa-digital-ocean"></i> DigitalOcean API Token</label>
-                            <input type="password" id="do-api-token" class="form-control" placeholder="dop_v1_xxxxxxxxxxxxxxxxxxxxxxxx..." value="dop_v1_8a92f0029b3c4d5e6f7a8b9c0d1e2f3a">
-                            <small class="form-text">Generate a Personal Access Token with Read & Write access in DO Console.</small>
-                        </div>
-
-                        <div class="form-group">
-                            <label><i class="fa-solid fa-server"></i> Selected Droplet ID</label>
-                            <input type="text" id="do-droplet-id" class="form-control" value="394820194 (sgp1-ubuntu-vps)">
-                        </div>
-
-                        <button class="btn btn-primary" id="btn-save-settings"><i class="fa-solid fa-floppy-disk"></i> Save Credentials</button>
                     </div>
                 </section>
 
@@ -619,32 +353,25 @@
     <div class="modal-backdrop" id="modal-add-site">
         <div class="modal-card">
             <div class="modal-header">
-                <h3><i class="fa-solid fa-globe"></i> Create New Website</h3>
+                <h3><i class="fa-solid fa-globe"></i> Create New Website / App</h3>
                 <button class="btn-close" onclick="closeModal('modal-add-site')">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label>Domain Name</label>
-                    <input type="text" id="new-domain-input" class="form-control" placeholder="example.com or sub.example.com">
+                    <label>Domain or Subdomain Name</label>
+                    <input type="text" id="new-domain-input" class="form-control" placeholder="shop.stech.asia or app.stech.asia">
                 </div>
                 <div class="form-group">
-                    <label>PHP Engine Version</label>
+                    <label>App Server Type</label>
                     <select id="new-domain-php" class="form-control">
-                        <option value="8.3">PHP 8.3 (Recommended)</option>
-                        <option value="8.2">PHP 8.2</option>
-                        <option value="8.1">PHP 8.1</option>
-                        <option value="static">Static HTML / Node.js Reverse Proxy</option>
+                        <option value="static">Static HTML / Nginx Web Site</option>
+                        <option value="proxy">Node.js / Python Reverse Proxy App</option>
                     </select>
-                </div>
-                <div class="form-group">
-                    <label class="checkbox-label">
-                        <input type="checkbox" id="auto-issue-ssl" checked> Auto-Issue Let's Encrypt SSL Certificate
-                    </label>
                 </div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('modal-add-site')">Cancel</button>
-                <button class="btn btn-primary" onclick="submitCreateSite()">Create Website</button>
+                <button class="btn btn-primary" onclick="submitCreateSite()">Create Domain / App</button>
             </div>
         </div>
     </div>

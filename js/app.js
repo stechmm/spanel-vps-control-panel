@@ -37,9 +37,9 @@ async function loadSites() {
     const tbody = document.getElementById('sites-table-body');
     if (!tbody) return;
 
-    // Active sites state
+    // Active sites state (Real VPS Production Sites)
     const defaultSites = [
-        { domain: 'pos.stech.asia', type: 'Pandora POS', root: 'Proxy :4173', ssl: true, status: 'Active' },
+        { domain: 'pos.stech.asia', type: 'Pandora POS App Server', root: 'Proxy :4173', ssl: true, status: 'Active' },
         { domain: 'panel.stech.asia', type: 'SPanel Control Panel', root: 'Proxy :5050', ssl: true, status: 'Active' },
         { domain: 'stech.asia', type: 'Main Website', root: '/var/www/stech.asia', ssl: true, status: 'Active' }
     ];
