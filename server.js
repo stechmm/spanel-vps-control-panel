@@ -37,9 +37,9 @@ function getJsonBody(req) {
     });
 }
 
-function runCmd(cmd) {
+function runCmd(cmd, cwd = '/var/www') {
     return new Promise((resolve) => {
-        exec(cmd, { timeout: 30000 }, (error, stdout, stderr) => {
+        exec(cmd, { cwd, timeout: 60000 }, (error, stdout, stderr) => {
             resolve({ error: error ? error.message : null, stdout: stdout || '', stderr: stderr || '' });
         });
     });
@@ -226,7 +226,7 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 6. File Manager: Save File
+        // 6. File Manager: Save / Overwrite File Content
         if (req.url === '/api/file/save' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const filePath = body.filePath;
@@ -240,7 +240,108 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 7. Security Sentinel Status & Firewall Rules
+        // 7. File Manager: Create Folder (mkdir)
+        if (req.url === '/api/file/mkdir' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const folderPath = body.folderPath;
+            if (!folderPath || !folderPath.startsWith('/var/www')) {
+                return res.end(JSON.stringify({ success: false, error: 'Invalid folder path' }));
+            }
+
+            try {
+                fs.mkdirSync(folderPath, { recursive: true });
+                return res.end(JSON.stringify({ success: true, message: 'Folder created!' }));
+            } catch (e) {
+                return res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+        }
+
+        // 8. File Manager: Delete File or Folder
+        if (req.url === '/api/file/delete' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const targetPath = body.targetPath;
+            if (!targetPath || !targetPath.startsWith('/var/www') || targetPath === '/var/www') {
+                return res.end(JSON.stringify({ success: false, error: 'Cannot delete root directory' }));
+            }
+
+            const delRes = await runCmd(`rm -rf "${targetPath}"`);
+            return res.end(JSON.stringify({ success: !delRes.error, output: delRes.stdout || delRes.stderr }));
+        }
+
+        // 9. File Manager: Extract ZIP Archive
+        if (req.url === '/api/file/unzip' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const zipPath = body.zipPath;
+            const destDir = body.destDir || path.dirname(zipPath);
+
+            if (!zipPath || !fs.existsSync(zipPath)) {
+                return res.end(JSON.stringify({ success: false, error: 'ZIP file not found' }));
+            }
+
+            const unzipRes = await runCmd(`unzip -o "${zipPath}" -d "${destDir}"`);
+            return res.end(JSON.stringify({ success: !unzipRes.error, output: unzipRes.stdout || unzipRes.stderr }));
+        }
+
+        // 10. File Manager: Upload File (Base64 or Raw)
+        if (req.url === '/api/file/upload' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const targetDir = body.targetDir || '/var/www';
+            const fileName = body.fileName;
+            const base64Data = body.base64Data;
+
+            if (!fileName || !base64Data) {
+                return res.end(JSON.stringify({ success: false, error: 'Missing file data' }));
+            }
+
+            const destPath = path.join(targetDir, fileName);
+            try {
+                const buffer = Buffer.from(base64Data, 'base64');
+                fs.writeFileSync(destPath, buffer);
+                return res.end(JSON.stringify({ success: true, message: `File ${fileName} uploaded!` }));
+            } catch (e) {
+                return res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+        }
+
+        // 11. Git Direct Auto-Deploy
+        if (req.url === '/api/git/deploy' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const repoUrl = (body.repoUrl || '').trim();
+            const branch = body.branch || 'main';
+            const targetDomain = body.domain;
+
+            if (!repoUrl || !targetDomain) {
+                return res.end(JSON.stringify({ success: false, error: 'Git Repo URL and target Domain required' }));
+            }
+
+            const deployDir = `/var/www/${targetDomain}`;
+            await runCmd(`mkdir -p ${deployDir}`);
+
+            let gitCmd = '';
+            if (fs.existsSync(`${deployDir}/.git`)) {
+                gitCmd = `git fetch origin && git checkout ${branch} && git pull origin ${branch}`;
+            } else {
+                gitCmd = `rm -rf ${deployDir}/* && git clone -b ${branch} ${repoUrl} ${deployDir}`;
+            }
+
+            const deployRes = await runCmd(gitCmd, deployDir);
+
+            // Optional npm install & build if package.json exists
+            if (fs.existsSync(`${deployDir}/package.json`)) {
+                await runCmd(`npm install`, deployDir);
+            }
+
+            // Reload Nginx
+            await runCmd(`systemctl reload nginx`);
+
+            return res.end(JSON.stringify({
+                success: !deployRes.error,
+                message: `Git Repository deployed to ${targetDomain}!`,
+                output: deployRes.stdout || deployRes.stderr
+            }));
+        }
+
+        // 12. Security Sentinel Status
         if (req.url === '/api/security/status' && req.method === 'GET') {
             const fail2banRes = await runCmd("fail2ban-client status sshd");
             const ufwRes = await runCmd("ufw status numbered");
@@ -259,7 +360,7 @@ const server = http.createServer(async (req, res) => {
             }));
         }
 
-        // 8. Security Sentinel: Unban IP
+        // 13. Security Sentinel: Unban IP
         if (req.url === '/api/security/unban' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const ip = (body.ip || '').trim();
@@ -269,7 +370,7 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ success: !unbanRes.error, output: unbanRes.stdout || unbanRes.stderr }));
         }
 
-        // 9. SSH Terminal Execution
+        // 14. SSH Terminal Execution
         if (req.url === '/api/terminal-exec' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const cmd = body.command;

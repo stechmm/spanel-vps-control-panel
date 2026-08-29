@@ -7,7 +7,7 @@
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&family=JetBrains-Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <!-- FontAwesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Custom CSS -->
@@ -78,9 +78,13 @@
                     <i class="fa-solid fa-folder-tree"></i>
                     <span>File Manager & Editor</span>
                 </a>
+                <a href="#gitdeploy" class="nav-item" data-tab="gitdeploy">
+                    <i class="fa-brands fa-git-alt text-warning"></i>
+                    <span>Git Auto-Deploy</span>
+                </a>
                 <a href="#security" class="nav-item" data-tab="security">
                     <i class="fa-solid fa-shield-halved"></i>
-                    <span>SSL & Firewall</span>
+                    <span>SSL & Sentinel Security</span>
                 </a>
                 <a href="#terminal" class="nav-item" data-tab="terminal">
                     <i class="fa-solid fa-terminal"></i>
@@ -256,11 +260,13 @@
                 <section id="tab-filemanager" class="tab-content">
                     <div class="page-title-bar">
                         <div>
-                            <h1>File Manager & Code Editor</h1>
-                            <p class="subtitle">Direct server filesystem browser with built-in code editor</p>
+                            <h1>Power File Manager & Code Editor</h1>
+                            <p class="subtitle">Full-featured File Upload, ZIP Extraction, Folder Creation & Code Editor</p>
                         </div>
-                        <div class="fm-actions">
-                            <button class="btn btn-secondary btn-sm" onclick="loadFiles('/var/www')"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
+                        <div class="fm-actions" style="display:flex; gap:10px;">
+                            <button class="btn btn-secondary btn-sm" onclick="openNewFolderModal()"><i class="fa-solid fa-folder-plus"></i> New Folder</button>
+                            <button class="btn btn-primary btn-sm" onclick="openUploadModal()"><i class="fa-solid fa-cloud-arrow-up"></i> Upload File</button>
+                            <button class="btn btn-secondary btn-sm" onclick="loadFiles(currentPath)"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
                         </div>
                     </div>
 
@@ -289,7 +295,41 @@
                     </div>
                 </section>
 
-                <!-- TAB 4: SSL & SECURITY SENTINEL -->
+                <!-- TAB 4: GIT AUTO-DEPLOY -->
+                <section id="tab-gitdeploy" class="tab-content">
+                    <div class="page-title-bar">
+                        <div>
+                            <h1>Git Direct Repository Auto-Deploy</h1>
+                            <p class="subtitle">1-Click Clone / Pull from GitHub & Automatic Deployment</p>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-brands fa-github text-warning"></i> Deploy Git Repository to VPS</h3>
+                        </div>
+                        <form onsubmit="handleGitDeploy(event)" style="display:flex; flex-direction:column; gap:16px;">
+                            <div class="form-group">
+                                <label>Git Repository URL</label>
+                                <input type="text" id="git-repo-url" class="form-control" placeholder="https://github.com/user/repository.git" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Target Domain / Subdomain</label>
+                                <input type="text" id="git-target-domain" class="form-control" placeholder="shop.stech.asia or stech.asia" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Git Branch</label>
+                                <input type="text" id="git-branch" class="form-control" value="main" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fa-solid fa-rocket"></i> Clone & Deploy Repository
+                            </button>
+                        </form>
+                        <div id="git-deploy-log" style="margin-top:20px; font-family:var(--font-mono); font-size:12px; color:#4ade80; background:#050811; padding:14px; border-radius:8px; display:none; white-space:pre-wrap;"></div>
+                    </div>
+                </section>
+
+                <!-- TAB 5: SSL & SECURITY SENTINEL -->
                 <section id="tab-security" class="tab-content">
                     <div class="page-title-bar">
                         <div>
@@ -366,7 +406,7 @@
                     </div>
                 </section>
 
-                <!-- TAB 5: TERMINAL CONSOLE -->
+                <!-- TAB 6: TERMINAL CONSOLE -->
                 <section id="tab-terminal" class="tab-content">
                     <div class="page-title-bar">
                         <div>
@@ -425,6 +465,46 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('modal-add-site')">Cancel</button>
                 <button class="btn btn-primary" onclick="submitCreateSite()">Create Domain / App</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialog: New Folder -->
+    <div class="modal-backdrop" id="modal-new-folder">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-folder-plus"></i> Create New Folder</h3>
+                <button class="btn-close" onclick="closeModal('modal-new-folder')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Folder Name</label>
+                    <input type="text" id="new-folder-input" class="form-control" placeholder="subfolder or assets">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-new-folder')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitCreateFolder()">Create Folder</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialog: File Upload -->
+    <div class="modal-backdrop" id="modal-upload-file">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-cloud-arrow-up"></i> Upload File to Server</h3>
+                <button class="btn-close" onclick="closeModal('modal-upload-file')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Select File (HTML, ZIP, JS, CSS, PNG)</label>
+                    <input type="file" id="upload-file-input" class="form-control">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-upload-file')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitUploadFile()">Upload to Server</button>
             </div>
         </div>
     </div>

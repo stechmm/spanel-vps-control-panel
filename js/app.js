@@ -1,5 +1,5 @@
 /**
- * SPanel - Full-Featured VPS Control Panel (Production Password Protected)
+ * SPanel Pro - Full Power File Manager & Git Auto-Deploy
  */
 
 let currentPath = '/var/www';
@@ -30,7 +30,6 @@ async function checkAuth() {
             showLoginScreen();
         }
     } catch (e) {
-        // If local dev or offline, fallback to hide login
         hideLoginScreen();
         loadSites();
         loadFiles(currentPath);
@@ -220,7 +219,6 @@ async function issueSsl(domainName) {
     }
 }
 
-// Delete Site
 function deleteSite(index) {
     if (confirm('Are you sure you want to remove this site configuration?')) {
         const sites = JSON.parse(localStorage.getItem('novapanel_sites')) || [];
@@ -231,7 +229,7 @@ function deleteSite(index) {
     }
 }
 
-// 2. File Manager (Full API Connection)
+// 2. Power File Manager
 async function loadFiles(pathDir = '/var/www') {
     currentPath = pathDir;
     const pathBar = document.getElementById('fm-path-bar');
@@ -249,28 +247,33 @@ async function loadFiles(pathDir = '/var/www') {
         const data = await res.json();
 
         if (data.success && data.files) {
-            tbody.innerHTML = data.files.map(f => `
+            tbody.innerHTML = data.files.map(f => {
+                const escapedPath = f.path.replace(/\\/g, '/');
+                const isZip = f.name.endsWith('.zip');
+                return `
                 <tr>
                     <td><input type="checkbox"></td>
                     <td>
                         <i class="${f.isDir ? 'fa-solid fa-folder text-warning' : 'fa-solid fa-file-code text-primary'}"></i>
-                        <strong style="margin-left:8px; cursor:pointer;" onclick="${f.isDir ? `loadFiles('${f.path.replace(/\\/g, '/')}')` : `editFile('${f.path.replace(/\\/g, '/')}')`}">${f.name}</strong>
+                        <strong style="margin-left:8px; cursor:pointer;" onclick="${f.isDir ? `loadFiles('${escapedPath}')` : `editFile('${escapedPath}')`}">${f.name}</strong>
                     </td>
                     <td>${f.size}</td>
                     <td><code>${f.perm}</code></td>
                     <td>${f.mtime}</td>
                     <td>
-                        ${f.isDir ? '' : `<button class="btn-icon-sm text-primary" title="Edit File" onclick="editFile('${f.path.replace(/\\/g, '/')}')"><i class="fa-solid fa-pen-to-square"></i></button>`}
+                        ${f.isDir ? '' : `<button class="btn-icon-sm text-primary" title="Edit File" onclick="editFile('${escapedPath}')"><i class="fa-solid fa-pen-to-square"></i> Edit</button>`}
+                        ${isZip ? `<button class="btn-icon-sm text-warning" title="Extract ZIP" onclick="unzipFile('${escapedPath}')"><i class="fa-solid fa-file-zipper"></i> Extract</button>` : ''}
+                        <button class="btn-icon-sm text-danger" title="Delete" onclick="deleteFileOrFolder('${escapedPath}')"><i class="fa-solid fa-trash"></i> Delete</button>
                     </td>
                 </tr>
-            `).join('');
+            `}).join('');
         }
     } catch (e) {
         console.error('File manager load error', e);
     }
 }
 
-// File Manager Code Editor
+// File Manager: Code Editor
 async function editFile(filePath) {
     try {
         const res = await fetch('/api/file/read', {
@@ -283,7 +286,7 @@ async function editFile(filePath) {
         });
         const data = await res.json();
         if (data.success) {
-            const newContent = prompt(`Edit file: ${filePath}`, data.content);
+            const newContent = prompt(`Edit & Overwrite file: ${filePath}`, data.content);
             if (newContent !== null) {
                 saveFile(filePath, newContent);
             }
@@ -304,8 +307,165 @@ async function saveFile(filePath, content) {
     });
     const data = await res.json();
     if (data.success) {
-        showNotification(`File ${filePath} saved!`);
+        showNotification(`File ${filePath} saved & overwritten!`);
         loadFiles(currentPath);
+    }
+}
+
+// File Manager: Create Folder
+function openNewFolderModal() {
+    const modal = document.getElementById('modal-new-folder');
+    if (modal) modal.style.display = 'flex';
+}
+
+async function submitCreateFolder() {
+    const folderName = document.getElementById('new-folder-input').value.trim();
+    if (!folderName) return;
+
+    const folderPath = `${currentPath}/${folderName}`;
+    const res = await fetch('/api/file/mkdir', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ folderPath })
+    });
+    const data = await res.json();
+    if (data.success) {
+        closeModal('modal-new-folder');
+        showNotification(`Folder ${folderName} created!`);
+        loadFiles(currentPath);
+    } else {
+        alert('Error: ' + data.error);
+    }
+}
+
+// File Manager: Delete File/Folder
+async function deleteFileOrFolder(targetPath) {
+    if (!confirm(`Are you sure you want to delete ${targetPath}?`)) return;
+
+    const res = await fetch('/api/file/delete', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ targetPath })
+    });
+    const data = await res.json();
+    if (data.success) {
+        showNotification(`Deleted ${targetPath}`);
+        loadFiles(currentPath);
+    } else {
+        alert('Delete error: ' + data.error);
+    }
+}
+
+// File Manager: Unzip Archive
+async function unzipFile(zipPath) {
+    showNotification(`Extracting ZIP archive ${zipPath}...`);
+    const res = await fetch('/api/file/unzip', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ zipPath, destDir: currentPath })
+    });
+    const data = await res.json();
+    if (data.success) {
+        showNotification('ZIP Archive extracted successfully!');
+        loadFiles(currentPath);
+    } else {
+        alert('Unzip error: ' + data.error);
+    }
+}
+
+// File Manager: Upload File Modal & Action
+function openUploadModal() {
+    const modal = document.getElementById('modal-upload-file');
+    if (modal) modal.style.display = 'flex';
+}
+
+async function submitUploadFile() {
+    const fileInput = document.getElementById('upload-file-input');
+    if (!fileInput.files || fileInput.files.length === 0) {
+        alert('Please select a file to upload!');
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const reader = new FileReader();
+
+    reader.onload = async (e) => {
+        const base64Data = e.target.result.split(',')[1];
+        showNotification(`Uploading ${file.name} to ${currentPath}...`);
+
+        const res = await fetch('/api/file/upload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({
+                targetDir: currentPath,
+                fileName: file.name,
+                base64Data: base64Data
+            })
+        });
+        const data = await res.json();
+        if (data.success) {
+            closeModal('modal-upload-file');
+            showNotification(`File ${file.name} uploaded successfully!`);
+            loadFiles(currentPath);
+        } else {
+            alert('Upload error: ' + data.error);
+        }
+    };
+
+    reader.readAsDataURL(file);
+}
+
+// 3. Git Direct Auto-Deploy
+async function handleGitDeploy(event) {
+    event.preventDefault();
+    const repoUrl = document.getElementById('git-repo-url').value.trim();
+    const targetDomain = document.getElementById('git-target-domain').value.trim();
+    const branch = document.getElementById('git-branch').value.trim();
+    const logEl = document.getElementById('git-deploy-log');
+
+    showNotification(`Cloning & Deploying Git Repo ${repoUrl}...`);
+    if (logEl) {
+        logEl.style.display = 'block';
+        logEl.innerText = `[GIT AUTO-DEPLOY] Cloning ${repoUrl} (branch: ${branch}) to /var/www/${targetDomain}...\nPlease wait...`;
+    }
+
+    try {
+        const res = await fetch('/api/git/deploy', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ repoUrl, domain: targetDomain, branch })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            showNotification(`Git Repository deployed successfully to ${targetDomain}!`);
+            if (logEl) {
+                logEl.innerText = `✅ DEPLOYMENT SUCCESSFUL!\n\n${data.output}`;
+            }
+        } else {
+            if (logEl) {
+                logEl.innerText = `❌ DEPLOYMENT FAILED:\n\n${data.output || data.error}`;
+            }
+        }
+    } catch (e) {
+        if (logEl) {
+            logEl.innerText = `Deployment error: ${e.message}`;
+        }
     }
 }
 
