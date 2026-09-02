@@ -145,6 +145,7 @@ const server = http.createServer(async (req, res) => {
 
             const dfResult = await runCmd("df -h / | tail -n 1");
             const uptimeResult = await runCmd("uptime -p");
+            const swapResult = await runCmd("free -h | grep Swap");
 
             return res.end(JSON.stringify({
                 cpuLoad: cpuLoad[0].toFixed(2),
@@ -152,7 +153,8 @@ const server = http.createServer(async (req, res) => {
                 freeRamMB: Math.round(freeMem / (1024 * 1024)),
                 usedRamMB: Math.round((totalMem - freeMem) / (1024 * 1024)),
                 diskInfo: dfResult.stdout.trim(),
-                uptime: uptimeResult.stdout.trim().replace('up ', '')
+                uptime: uptimeResult.stdout.trim().replace('up ', ''),
+                swapInfo: swapResult.stdout.trim()
             }));
         }
 
