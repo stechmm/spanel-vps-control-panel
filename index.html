@@ -407,9 +407,10 @@
                     <div class="page-title-bar">
                         <div>
                             <h1>Power File Manager & Code Editor</h1>
-                            <p class="subtitle">Full-featured File Upload, ZIP Extraction, Folder Creation & Code Editor</p>
+                            <p class="subtitle">Click or Double-Click Folders to Navigate, Click Files to Edit</p>
                         </div>
                         <div class="fm-actions" style="display:flex; gap:10px;">
+                            <button class="btn btn-secondary btn-sm" onclick="loadFiles('/var/www')"><i class="fa-solid fa-house"></i> Root /var/www</button>
                             <button class="btn btn-secondary btn-sm" onclick="openNewFolderModal()"><i class="fa-solid fa-folder-plus"></i> New Folder</button>
                             <button class="btn btn-primary btn-sm" onclick="openUploadModal()"><i class="fa-solid fa-cloud-arrow-up"></i> Upload File</button>
                             <button class="btn btn-secondary btn-sm" onclick="loadFiles(currentPath)"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
@@ -434,7 +435,7 @@
                                     </tr>
                                 </thead>
                                 <tbody id="fm-file-list">
-                                    <!-- Populated by JS -->
+                                    <!-- Populated dynamically -->
                                 </tbody>
                             </table>
                         </div>
@@ -600,7 +601,7 @@
                             <div class="term-line output">Welcome to SPanel Pro Enterprise Web Console</div>
                             <div class="term-line output">Connected to VPS: <span class="term-highlight">167.172.79.75</span></div>
                             <div class="term-prompt-line">
-                                <span class="prompt-text">root@167.172.79.75:~#</span>
+                                <span class="prompt-text">root@167.172.79.75:/var/www#</span>
                                 <input type="text" id="term-input" autocomplete="off" autofocus spellcheck="false">
                             </div>
                         </div>
@@ -609,6 +610,24 @@
 
             </div>
         </main>
+    </div>
+
+    <!-- Modal Dialog: Full Code Editor -->
+    <div class="modal-backdrop" id="modal-edit-file" style="z-index: 10000;">
+        <div class="modal-card" style="max-width: 800px; width: 95%;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-code text-primary"></i> <span id="editor-file-title">Edit File</span></h3>
+                <button class="btn-close" onclick="closeModal('modal-edit-file')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editor-file-path">
+                <textarea id="editor-content-area" class="form-control" style="font-family: var(--font-mono); font-size: 13px; height: 380px; background: #050811; color: #4ade80; line-height: 1.5; white-space: pre;" spellcheck="false"></textarea>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-edit-file')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitSaveFile()"><i class="fa-solid fa-floppy-disk"></i> Save & Overwrite File</button>
+            </div>
+        </div>
     </div>
 
     <!-- Modal Dialog: Add New Website -->

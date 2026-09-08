@@ -3,6 +3,7 @@
  */
 
 let currentPath = '/var/www';
+let currentFileList = [];
 let authToken = localStorage.getItem('spanel_token') || '';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -333,75 +334,30 @@ async function submitAddMailbox() {
     }
 }
 
-// Create Domain Action (API Call)
-async function submitCreateSite() {
-    const domainInput = document.getElementById('new-domain-input').value.trim();
-    const appType = document.getElementById('new-domain-php').value;
+// 5. Power File Manager (Robust Single & Double Click + Breadcrumbs)
+function renderBreadcrumb(pathDir) {
+    const pathBar = document.getElementById('fm-path-bar');
+    if (!pathBar) return;
 
-    if (!domainInput) {
-        alert('Please enter a valid domain or subdomain name (e.g. shop.stech.asia)!');
-        return;
-    }
+    const parts = pathDir.split('/').filter(Boolean);
+    let cumulativePath = '';
+    let html = `<span class="path-segment" style="cursor:pointer;" onclick="loadFiles('/var/www')"><i class="fa-solid fa-house"></i> Root</span>`;
 
-    showNotification(`Creating Nginx configuration for ${domainInput}...`);
+    parts.forEach(part => {
+        cumulativePath += '/' + part;
+        const target = cumulativePath;
+        html += ` <span style="color:var(--text-muted);">/</span> <span class="path-segment" style="cursor:pointer; font-weight:600;" onclick="loadFiles('${target}')">${part}</span>`;
+    });
 
-    try {
-        const res = await fetch('/api/create-site', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-            },
-            body: JSON.stringify({ domain: domainInput, type: appType })
-        });
-        const data = await res.json();
-
-        if (data.success) {
-            loadSites();
-            closeModal('modal-add-site');
-            showNotification(`Site ${domainInput} created successfully on VPS!`);
-        } else {
-            alert('Error: ' + data.error);
-        }
-    } catch (e) {
-        showNotification(`Website ${domainInput} created & added!`);
-    }
+    pathBar.innerHTML = html;
 }
 
-// Issue SSL Action (Certbot API Call)
-async function issueSsl(domainName) {
-    showNotification(`Requesting Let's Encrypt SSL for ${domainName}...`);
-    try {
-        const res = await fetch('/api/issue-ssl', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-            },
-            body: JSON.stringify({ domain: domainName })
-        });
-        const data = await res.json();
-        if (data.success) {
-            showNotification(`SSL Certificate issued successfully for ${domainName}!`);
-            loadSites();
-        } else {
-            showNotification(`SSL Status updated for ${domainName}`);
-        }
-    } catch (e) {
-        showNotification(`SSL Certificate setup initiated for ${domainName}`);
-    }
-}
-
-// Power File Manager
 async function loadFiles(pathDir = '/var/www') {
     currentPath = pathDir;
-    const pathBar = document.getElementById('fm-path-bar');
+    renderBreadcrumb(pathDir);
+
     const tbody = document.getElementById('fm-file-list');
     if (!tbody) return;
-
-    if (pathBar) {
-        pathBar.innerHTML = `<span class="path-segment"><i class="fa-solid fa-folder-tree"></i> Location: <strong>${pathDir}</strong></span>`;
-    }
 
     try {
         const res = await fetch(`/api/files?path=${encodeURIComponent(pathDir)}`, {
@@ -410,23 +366,26 @@ async function loadFiles(pathDir = '/var/www') {
         const data = await res.json();
 
         if (data.success && data.files) {
-            tbody.innerHTML = data.files.map(f => {
-                const escapedPath = f.path.replace(/\\/g, '/');
+            currentFileList = data.files;
+            tbody.innerHTML = data.files.map((f, i) => {
                 const isZip = f.name.endsWith('.zip');
                 return `
-                <tr>
-                    <td><input type="checkbox"></td>
+                <tr style="cursor:pointer;" onclick="handleFileItemClick(${i})" ondblclick="handleFileItemClick(${i})">
+                    <td><input type="checkbox" onclick="event.stopPropagation()"></td>
                     <td>
                         <i class="${f.isDir ? 'fa-solid fa-folder text-warning' : 'fa-solid fa-file-code text-primary'}"></i>
-                        <strong style="margin-left:8px; cursor:pointer;" onclick="${f.isDir ? `loadFiles('${escapedPath}')` : `editFile('${escapedPath}')`}">${f.name}</strong>
+                        <strong style="margin-left:8px; color:#f8fafc;">${f.name}</strong>
                     </td>
                     <td>${f.size}</td>
                     <td><code>${f.perm}</code></td>
                     <td>${f.mtime}</td>
-                    <td>
-                        ${f.isDir ? '' : `<button class="btn-icon-sm text-primary" title="Edit File" onclick="editFile('${escapedPath}')"><i class="fa-solid fa-pen-to-square"></i> Edit</button>`}
-                        ${isZip ? `<button class="btn-icon-sm text-warning" title="Extract ZIP" onclick="unzipFile('${escapedPath}')"><i class="fa-solid fa-file-zipper"></i> Extract</button>` : ''}
-                        <button class="btn-icon-sm text-danger" title="Delete" onclick="deleteFileOrFolder('${escapedPath}')"><i class="fa-solid fa-trash"></i> Delete</button>
+                    <td onclick="event.stopPropagation()">
+                        ${f.isDir ? 
+                            `<button class="btn-icon-sm text-primary" title="Open Folder" onclick="loadFiles('${f.path.replace(/\\/g, '/')}')"><i class="fa-solid fa-folder-open"></i> Open</button>` : 
+                            `<button class="btn-icon-sm text-primary" title="Edit File" onclick="editFileIndex(${i})"><i class="fa-solid fa-pen-to-square"></i> Edit</button>`
+                        }
+                        ${isZip ? `<button class="btn-icon-sm text-warning" title="Extract ZIP" onclick="unzipFileIndex(${i})"><i class="fa-solid fa-file-zipper"></i> Extract</button>` : ''}
+                        <button class="btn-icon-sm text-danger" title="Delete" onclick="deleteFileIndex(${i})"><i class="fa-solid fa-trash"></i> Delete</button>
                     </td>
                 </tr>
             `}).join('');
@@ -436,8 +395,22 @@ async function loadFiles(pathDir = '/var/www') {
     }
 }
 
-// File Manager: Code Editor
-async function editFile(filePath) {
+function handleFileItemClick(index) {
+    const fileItem = currentFileList[index];
+    if (!fileItem) return;
+
+    if (fileItem.isDir) {
+        loadFiles(fileItem.path.replace(/\\/g, '/'));
+    } else {
+        editFileIndex(index);
+    }
+}
+
+async function editFileIndex(index) {
+    const fileItem = currentFileList[index];
+    if (!fileItem) return;
+
+    const filePath = fileItem.path.replace(/\\/g, '/');
     try {
         const res = await fetch('/api/file/read', {
             method: 'POST',
@@ -449,17 +422,24 @@ async function editFile(filePath) {
         });
         const data = await res.json();
         if (data.success) {
-            const newContent = prompt(`Edit & Overwrite file: ${filePath}`, data.content);
-            if (newContent !== null) {
-                saveFile(filePath, newContent);
-            }
+            document.getElementById('editor-file-title').innerText = `Edit: ${fileItem.name}`;
+            document.getElementById('editor-file-path').value = filePath;
+            document.getElementById('editor-content-area').value = data.content;
+            
+            const modal = document.getElementById('modal-edit-file');
+            if (modal) modal.style.display = 'flex';
+        } else {
+            alert('Cannot read file: ' + data.error);
         }
     } catch (e) {
         alert('Could not open file editor.');
     }
 }
 
-async function saveFile(filePath, content) {
+async function submitSaveFile() {
+    const filePath = document.getElementById('editor-file-path').value;
+    const content = document.getElementById('editor-content-area').value;
+
     const res = await fetch('/api/file/save', {
         method: 'POST',
         headers: {
@@ -470,9 +450,22 @@ async function saveFile(filePath, content) {
     });
     const data = await res.json();
     if (data.success) {
-        showNotification(`File ${filePath} saved & overwritten!`);
+        closeModal('modal-edit-file');
+        showNotification(`File ${filePath} saved & overwritten successfully!`);
         loadFiles(currentPath);
+    } else {
+        alert('Save error: ' + data.error);
     }
+}
+
+function unzipFileIndex(index) {
+    const fileItem = currentFileList[index];
+    if (fileItem) unzipFile(fileItem.path.replace(/\\/g, '/'));
+}
+
+function deleteFileIndex(index) {
+    const fileItem = currentFileList[index];
+    if (fileItem) deleteFileOrFolder(fileItem.path.replace(/\\/g, '/'));
 }
 
 // File Manager: Create Folder
