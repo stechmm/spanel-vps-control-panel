@@ -184,11 +184,11 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 4. Node.js App Manager: PM2 Control Action (Restart/Stop/Start)
+        // 4. Node.js App Manager: PM2 Control Action
         if (req.url === '/api/pm2/action' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const appName = body.appName;
-            const action = body.action || 'restart'; // restart, stop, start, reloadLogs
+            const action = body.action || 'restart';
 
             if (!appName) {
                 return res.end(JSON.stringify({ success: false, error: 'App name required' }));
@@ -201,13 +201,11 @@ const server = http.createServer(async (req, res) => {
             }));
         }
 
-        // 5. DNS Zone & Records Manager
+        // 5. DNS Zone Manager
         if (req.url === '/api/dns/records' && req.method === 'GET') {
             let dnsRecords = [];
             if (fs.existsSync(DNS_CONFIG_FILE)) {
-                try {
-                    dnsRecords = JSON.parse(fs.readFileSync(DNS_CONFIG_FILE, 'utf-8'));
-                } catch (e) {}
+                try { dnsRecords = JSON.parse(fs.readFileSync(DNS_CONFIG_FILE, 'utf-8')); } catch (e) {}
             } else {
                 dnsRecords = [
                     { type: 'A', name: '@', value: '167.172.79.75', ttl: '3600' },
@@ -239,7 +237,7 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ success: true, message: `DNS Record ${type} ${name} added!` }));
         }
 
-        // 6. Webmail & Mail Accounts Manager
+        // 6. Webmail Manager
         if (req.url === '/api/mail/accounts' && req.method === 'GET') {
             let mailAccounts = [];
             if (fs.existsSync(MAIL_CONFIG_FILE)) {
@@ -583,14 +581,26 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ success: !unbanRes.error, output: unbanRes.stdout || unbanRes.stderr }));
         }
 
-        // 21. SSH Terminal Execution
+        // 21. SSH Terminal Execution with Stateful CWD
         if (req.url === '/api/terminal-exec' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const cmd = body.command;
-            if (!cmd) return res.end(JSON.stringify({ output: '' }));
+            let currentDir = body.cwd || '/var/www';
+            if (!cmd) return res.end(JSON.stringify({ output: '', cwd: currentDir }));
 
-            const result = await runCmd(cmd);
-            return res.end(JSON.stringify({ output: result.stdout || result.stderr || result.error }));
+            if (cmd.startsWith('cd ')) {
+                const targetDir = cmd.replace(/^cd\s+/, '').trim();
+                const newCwdRes = await runCmd(`cd ${currentDir} && cd ${targetDir} && pwd`);
+                if (!newCwdRes.error && newCwdRes.stdout) {
+                    currentDir = newCwdRes.stdout.trim();
+                    return res.end(JSON.stringify({ output: '', cwd: currentDir }));
+                } else {
+                    return res.end(JSON.stringify({ output: newCwdRes.stderr || 'No such file or directory', cwd: currentDir }));
+                }
+            }
+
+            const result = await runCmd(cmd, currentDir);
+            return res.end(JSON.stringify({ output: result.stdout || result.stderr || '', cwd: currentDir }));
         }
 
         return res.end(JSON.stringify({ error: 'Endpoint not found' }));

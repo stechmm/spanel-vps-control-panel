@@ -1,6 +1,8 @@
 /**
- * Interactive SSH Web Terminal Console (Live VPS Command Execution)
+ * Interactive SSH Web Terminal Console with Stateful CWD Tracking
  */
+
+let terminalCwd = '/var/www';
 
 document.addEventListener('DOMContentLoaded', () => {
     initTerminal();
@@ -24,7 +26,7 @@ function initTerminal() {
             const cmd = input.value.trim();
             if (cmd === '') return;
 
-            appendTerminalLine(`root@167.172.79.75:~# ${cmd}`, 'prompt');
+            appendTerminalLine(`root@167.172.79.75:${terminalCwd}# ${cmd}`, 'prompt');
             input.value = '';
 
             if (cmd.toLowerCase() === 'clear') {
@@ -34,7 +36,7 @@ function initTerminal() {
 
             const token = localStorage.getItem('spanel_token') || '';
 
-            // Send command execution request to backend API
+            // Send command execution request with active CWD
             try {
                 const res = await fetch('/api/terminal-exec', {
                     method: 'POST',
@@ -42,15 +44,21 @@ function initTerminal() {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({ command: cmd })
+                    body: JSON.stringify({ command: cmd, cwd: terminalCwd })
                 });
                 const data = await res.json();
+
+                if (data.cwd) {
+                    terminalCwd = data.cwd;
+                    updatePromptLine(terminalCwd);
+                }
+
                 if (data.output) {
                     appendTerminalLine(data.output.trim(), 'output');
-                } else if (data.error) {
-                    appendTerminalLine(`[Error] ${data.error}`, 'output');
+                } else if (cmd.startsWith('cd ')) {
+                    appendTerminalLine(`(directory changed to ${terminalCwd})`, 'output');
                 } else {
-                    appendTerminalLine('(command completed with no output)', 'output');
+                    appendTerminalLine('(command completed cleanly)', 'output');
                 }
             } catch (err) {
                 appendTerminalLine(`Error executing command: ${err.message}`, 'output');
@@ -59,6 +67,13 @@ function initTerminal() {
             body.scrollTop = body.scrollHeight;
         }
     });
+}
+
+function updatePromptLine(cwd) {
+    const promptText = document.querySelector('.prompt-text');
+    if (promptText) {
+        promptText.textContent = `root@167.172.79.75:${cwd}#`;
+    }
 }
 
 function appendTerminalLine(text, type = 'output') {
