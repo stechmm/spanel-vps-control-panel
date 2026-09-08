@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SPanel Pro - Ultra-Lightweight VPS Control Panel</title>
+    <title>SPanel Pro - Enterprise VPS Control Panel Suite</title>
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -51,7 +51,7 @@
                 </div>
                 <div class="brand-text">
                     <h2>SPanel Pro</h2>
-                    <span class="badge droplet-badge"><i class="fa-solid fa-feather"></i> Ultra-Lightweight</span>
+                    <span class="badge droplet-badge"><i class="fa-solid fa-feather"></i> Enterprise Suite</span>
                 </div>
             </div>
 
@@ -67,15 +67,29 @@
             </div>
 
             <nav class="nav-menu">
-                <div class="nav-section">ESSENTIAL MODULES</div>
+                <div class="nav-section">CORE SERVICES</div>
                 <a href="#dashboard" class="nav-item active" data-tab="dashboard">
                     <i class="fa-solid fa-gauge-high"></i>
                     <span>Overview & Metrics</span>
                 </a>
                 <a href="#sites" class="nav-item" data-tab="sites">
                     <i class="fa-solid fa-globe"></i>
-                    <span>Websites & App Proxies</span>
+                    <span>Domains & Websites</span>
                 </a>
+                <a href="#nodejs" class="nav-item" data-tab="nodejs">
+                    <i class="fa-brands fa-node-js text-success"></i>
+                    <span>Node.js App Manager</span>
+                </a>
+                <a href="#dns" class="nav-item" data-tab="dns">
+                    <i class="fa-solid fa-network-wired text-primary"></i>
+                    <span>DNS Zone Manager</span>
+                </a>
+                <a href="#webmail" class="nav-item" data-tab="webmail">
+                    <i class="fa-solid fa-envelope text-danger"></i>
+                    <span>SPanel Webmail Engine</span>
+                </a>
+                
+                <div class="nav-section">SYSTEM & FILES</div>
                 <a href="#filemanager" class="nav-item" data-tab="filemanager">
                     <i class="fa-solid fa-folder-tree"></i>
                     <span>File Manager & Editor</span>
@@ -133,7 +147,7 @@
                     <div class="page-title-bar">
                         <div>
                             <h1>System Health & Resources</h1>
-                            <p class="subtitle">Optimized for 1GB RAM DigitalOcean VPS</p>
+                            <p class="subtitle">Optimized for Enterprise DigitalOcean VPS</p>
                         </div>
                         <div class="quick-info-pill">
                             <i class="fa-solid fa-clock"></i> Uptime: <span id="server-uptime">14 Days, 14 Hours</span>
@@ -180,6 +194,8 @@
                                 <div class="progress-bar-wrap">
                                     <div class="progress-bar disk-bar" id="disk-bar" style="width: 13%;"></div>
                                 </div>
+                                <span class="stat-sub">29 GB Storage Available</span>
+                            </div>
                         </div>
                     </div>
 
@@ -245,8 +261,8 @@
                 <section id="tab-sites" class="tab-content">
                     <div class="page-title-bar">
                         <div>
-                            <h1>Websites & App Proxies</h1>
-                            <p class="subtitle">Nginx VirtualHosts, Node/Python Reverse Proxies & Domain Routing</p>
+                            <h1>Websites & VirtualHosts</h1>
+                            <p class="subtitle">Real-Time Scanner of Active Nginx Domains & Reverse Proxies</p>
                         </div>
                         <button class="btn btn-primary" onclick="openAddSiteModal()">
                             <i class="fa-solid fa-plus"></i> Create New Website
@@ -267,14 +283,126 @@
                                     </tr>
                                 </thead>
                                 <tbody id="sites-table-body">
-                                    <!-- Populated by JS -->
+                                    <!-- Populated dynamically from /api/sites -->
                                 </tbody>
                             </table>
                         </div>
                     </div>
                 </section>
 
-                <!-- TAB 3: FILE MANAGER & EDITOR -->
+                <!-- TAB 3: NODE.JS APP MANAGER (PM2) -->
+                <section id="tab-nodejs" class="tab-content">
+                    <div class="page-title-bar">
+                        <div>
+                            <h1>Node.js & Python App Manager</h1>
+                            <p class="subtitle">Live Process Monitoring & Control via PM2 Daemon</p>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" onclick="loadNodeApps()"><i class="fa-solid fa-arrows-rotate"></i> Refresh Apps</button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-brands fa-node-js text-success"></i> Active Process Applications</h3>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>App Name</th>
+                                        <th>Status</th>
+                                        <th>CPU</th>
+                                        <th>Memory</th>
+                                        <th>Restarts</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pm2-table-body">
+                                    <!-- Populated dynamically from /api/pm2/list -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 4: DNS ZONE MANAGER -->
+                <section id="tab-dns" class="tab-content">
+                    <div class="page-title-bar">
+                        <div>
+                            <h1>DNS Zone & Records Manager</h1>
+                            <p class="subtitle">Manage A, CNAME, MX, and TXT Records for Hosted Domains</p>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="openAddDnsModal()"><i class="fa-solid fa-plus"></i> Add DNS Record</button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-network-wired text-primary"></i> Active DNS Zone Records</h3>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Type</th>
+                                        <th>Name / Host</th>
+                                        <th>Target / Value</th>
+                                        <th>TTL</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dns-table-body">
+                                    <!-- Populated dynamically from /api/dns/records -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 5: WEBMAIL ENGINE -->
+                <section id="tab-webmail" class="tab-content">
+                    <div class="page-title-bar">
+                        <div>
+                            <h1>SPanel Enterprise Webmail Engine</h1>
+                            <p class="subtitle">Create Mailboxes, IMAP/SMTP Relay & Webmail Access</p>
+                        </div>
+                        <button class="btn btn-primary btn-sm" onclick="openAddMailboxModal()"><i class="fa-solid fa-plus"></i> Create Mailbox</button>
+                    </div>
+
+                    <div class="card" style="margin-bottom:20px;">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-envelope-open-text text-danger"></i> Domain Mailboxes</h3>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="custom-table">
+                                <thead>
+                                    <tr>
+                                        <th>Email Address</th>
+                                        <th>Storage Quota</th>
+                                        <th>Used</th>
+                                        <th>Created Date</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="mail-table-body">
+                                    <!-- Populated dynamically from /api/mail/accounts -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="card" style="background:#0b1329;">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-circle-info text-primary"></i> Webmail Client & SMTP Settings</h3>
+                        </div>
+                        <div style="font-size:13px; line-height:1.8; color:var(--text-muted);">
+                            <div><strong>IMAP Server:</strong> <code>mail.stech.asia</code> (Port 993 SSL)</div>
+                            <div><strong>SMTP Server:</strong> <code>mail.stech.asia</code> (Port 465 SSL or 587 STARTTLS)</div>
+                            <div><strong>Webmail URL:</strong> <a href="https://panel.stech.asia" target="_blank" style="color:#818cf8;">https://panel.stech.asia/webmail</a></div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- TAB 6: FILE MANAGER & EDITOR -->
                 <section id="tab-filemanager" class="tab-content">
                     <div class="page-title-bar">
                         <div>
@@ -313,7 +441,7 @@
                     </div>
                 </section>
 
-                <!-- TAB 4: GIT AUTO-DEPLOY -->
+                <!-- TAB 7: GIT AUTO-DEPLOY -->
                 <section id="tab-gitdeploy" class="tab-content">
                     <div class="page-title-bar">
                         <div>
@@ -347,7 +475,7 @@
                     </div>
                 </section>
 
-                <!-- TAB 5: SSL & SECURITY SENTINEL -->
+                <!-- TAB 8: SSL & SECURITY SENTINEL -->
                 <section id="tab-security" class="tab-content">
                     <div class="page-title-bar">
                         <div>
@@ -447,7 +575,7 @@
                     </div>
                 </section>
 
-                <!-- TAB 6: TERMINAL CONSOLE -->
+                <!-- TAB 9: TERMINAL CONSOLE -->
                 <section id="tab-terminal" class="tab-content">
                     <div class="page-title-bar">
                         <div>
@@ -469,7 +597,7 @@
                         </div>
                         <div class="terminal-body" id="terminal-body">
                             <div class="term-line output">Linux do-sgp1-vps (167.172.79.75) 6.8.0-137-generic #137-Ubuntu x86_64</div>
-                            <div class="term-line output">Welcome to SPanel Pro Lightweight Web Console</div>
+                            <div class="term-line output">Welcome to SPanel Pro Enterprise Web Console</div>
                             <div class="term-line output">Connected to VPS: <span class="term-highlight">167.172.79.75</span></div>
                             <div class="term-prompt-line">
                                 <span class="prompt-text">root@167.172.79.75:~#</span>
@@ -506,6 +634,67 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('modal-add-site')">Cancel</button>
                 <button class="btn btn-primary" onclick="submitCreateSite()">Create Domain / App</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialog: Add DNS Record -->
+    <div class="modal-backdrop" id="modal-add-dns">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-network-wired"></i> Add DNS Zone Record</h3>
+                <button class="btn-close" onclick="closeModal('modal-add-dns')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Record Type</label>
+                    <select id="dns-type-input" class="form-control">
+                        <option value="A">A Record (IPv4 Address)</option>
+                        <option value="CNAME">CNAME Record (Alias)</option>
+                        <option value="MX">MX Record (Mail Exchange)</option>
+                        <option value="TXT">TXT Record (SPF/DKIM)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Host Name (e.g. @ or mail)</label>
+                    <input type="text" id="dns-name-input" class="form-control" placeholder="@ or mail">
+                </div>
+                <div class="form-group">
+                    <label>Target Value (IP or Domain)</label>
+                    <input type="text" id="dns-value-input" class="form-control" placeholder="167.172.79.75 or mail.stech.asia">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-add-dns')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitAddDns()">Add DNS Record</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialog: Add Mailbox -->
+    <div class="modal-backdrop" id="modal-add-mailbox">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-envelope"></i> Create New Mailbox</h3>
+                <button class="btn-close" onclick="closeModal('modal-add-mailbox')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Email Address</label>
+                    <input type="text" id="mail-email-input" class="form-control" placeholder="admin@stech.asia">
+                </div>
+                <div class="form-group">
+                    <label>Mailbox Password</label>
+                    <input type="password" id="mail-pass-input" class="form-control" placeholder="Enter mailbox password...">
+                </div>
+                <div class="form-group">
+                    <label>Storage Quota (MB)</label>
+                    <input type="number" id="mail-quota-input" class="form-control" value="1000">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-add-mailbox')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitAddMailbox()">Create Mailbox</button>
             </div>
         </div>
     </div>

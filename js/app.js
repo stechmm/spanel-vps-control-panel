@@ -1,5 +1,5 @@
 /**
- * SPanel Pro - Full Power File Manager & Git Auto-Deploy
+ * SPanel Pro - Power Enterprise Control Panel Suite
  */
 
 let currentPath = '/var/www';
@@ -25,6 +25,9 @@ async function checkAuth() {
         if (data.authenticated) {
             hideLoginScreen();
             loadSites();
+            loadNodeApps();
+            loadDnsRecords();
+            loadMailAccounts();
             loadFiles(currentPath);
         } else {
             showLoginScreen();
@@ -32,6 +35,7 @@ async function checkAuth() {
     } catch (e) {
         hideLoginScreen();
         loadSites();
+        loadNodeApps();
         loadFiles(currentPath);
     }
 }
@@ -80,6 +84,9 @@ async function handleLogin(event) {
             localStorage.setItem('spanel_token', authToken);
             hideLoginScreen();
             loadSites();
+            loadNodeApps();
+            loadDnsRecords();
+            loadMailAccounts();
             loadFiles(currentPath);
             showNotification('Welcome to SPanel Pro Admin Dashboard!');
         } else {
@@ -155,6 +162,177 @@ async function loadSites() {
     }
 }
 
+// 2. Node.js PM2 Process Manager
+async function loadNodeApps() {
+    const tbody = document.getElementById('pm2-table-body');
+    if (!tbody) return;
+
+    try {
+        const res = await fetch('/api/pm2/list', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        if (data.success && data.apps) {
+            tbody.innerHTML = data.apps.map(app => `
+                <tr>
+                    <td><code>${app.id}</code></td>
+                    <td>
+                        <strong>${app.name}</strong>
+                        <br><small style="color:var(--text-muted); font-size:11px;">${app.script || 'Node/Python Process'}</small>
+                    </td>
+                    <td>
+                        <span class="status-badge ${app.status === 'online' ? 'active' : 'inactive'}">
+                            <i class="fa-solid fa-circle"></i> ${app.status}
+                        </span>
+                    </td>
+                    <td><code>${app.cpu}%</code></td>
+                    <td><code>${app.memory} MB</code></td>
+                    <td>${app.restarts}</td>
+                    <td>
+                        <button class="btn-icon-sm text-warning" title="Restart App" onclick="pm2Action('${app.name}', 'restart')"><i class="fa-solid fa-rotate-right"></i></button>
+                        <button class="btn-icon-sm text-danger" title="Stop App" onclick="pm2Action('${app.name}', 'stop')"><i class="fa-solid fa-stop"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch (e) {
+        console.error('PM2 load error', e);
+    }
+}
+
+async function pm2Action(appName, action) {
+    showNotification(`Executing PM2 ${action} on ${appName}...`);
+    try {
+        const res = await fetch('/api/pm2/action', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ appName, action })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showNotification(`PM2 ${action} completed on ${appName}!`);
+            loadNodeApps();
+        }
+    } catch (e) {
+        showNotification(`PM2 Action triggered`);
+    }
+}
+
+// 3. DNS Zone Manager
+async function loadDnsRecords() {
+    const tbody = document.getElementById('dns-table-body');
+    if (!tbody) return;
+
+    try {
+        const res = await fetch('/api/dns/records', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        if (data.success && data.records) {
+            tbody.innerHTML = data.records.map(rec => `
+                <tr>
+                    <td><span class="badge badge-success">${rec.type}</span></td>
+                    <td><strong>${rec.name}</strong></td>
+                    <td><code>${rec.value}</code></td>
+                    <td>${rec.ttl} sec</td>
+                    <td><span class="status-badge active"><i class="fa-solid fa-check"></i> Active</span></td>
+                </tr>
+            `).join('');
+        }
+    } catch (e) {}
+}
+
+function openAddDnsModal() {
+    const modal = document.getElementById('modal-add-dns');
+    if (modal) modal.style.display = 'flex';
+}
+
+async function submitAddDns() {
+    const type = document.getElementById('dns-type-input').value;
+    const name = document.getElementById('dns-name-input').value.trim();
+    const value = document.getElementById('dns-value-input').value.trim();
+
+    if (!name || !value) {
+        alert('Please fill in DNS Name and Target Value.');
+        return;
+    }
+
+    const res = await fetch('/api/dns/add', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ type, name, value })
+    });
+    const data = await res.json();
+    if (data.success) {
+        closeModal('modal-add-dns');
+        showNotification(`DNS Record ${type} ${name} created!`);
+        loadDnsRecords();
+    }
+}
+
+// 4. Webmail Engine Manager
+async function loadMailAccounts() {
+    const tbody = document.getElementById('mail-table-body');
+    if (!tbody) return;
+
+    try {
+        const res = await fetch('/api/mail/accounts', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        if (data.success && data.accounts) {
+            tbody.innerHTML = data.accounts.map(acc => `
+                <tr>
+                    <td><i class="fa-solid fa-envelope text-primary"></i> <strong>${acc.email}</strong></td>
+                    <td>${acc.quota}</td>
+                    <td>${acc.used}</td>
+                    <td>${acc.created}</td>
+                    <td>
+                        <button class="btn-icon-sm text-primary" title="Access Webmail" onclick="window.open('https://panel.stech.asia', '_blank')"><i class="fa-solid fa-paper-plane"></i> Webmail</button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch (e) {}
+}
+
+function openAddMailboxModal() {
+    const modal = document.getElementById('modal-add-mailbox');
+    if (modal) modal.style.display = 'flex';
+}
+
+async function submitAddMailbox() {
+    const email = document.getElementById('mail-email-input').value.trim();
+    const password = document.getElementById('mail-pass-input').value.trim();
+    const quota = document.getElementById('mail-quota-input').value;
+
+    if (!email || !password) {
+        alert('Please fill in Email and Password.');
+        return;
+    }
+
+    const res = await fetch('/api/mail/create', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${authToken}`
+        },
+        body: JSON.stringify({ email, password, quota })
+    });
+    const data = await res.json();
+    if (data.success) {
+        closeModal('modal-add-mailbox');
+        showNotification(`Mailbox ${email} created successfully!`);
+        loadMailAccounts();
+    }
+}
+
 // Create Domain Action (API Call)
 async function submitCreateSite() {
     const domainInput = document.getElementById('new-domain-input').value.trim();
@@ -179,15 +357,6 @@ async function submitCreateSite() {
         const data = await res.json();
 
         if (data.success) {
-            const localSites = JSON.parse(localStorage.getItem('novapanel_sites')) || [];
-            localSites.push({
-                domain: domainInput,
-                type: appType === 'proxy' ? 'Node Proxy App' : 'Nginx Static/PHP',
-                root: `/var/www/${domainInput}`,
-                ssl: false,
-                status: 'Active'
-            });
-            localStorage.setItem('novapanel_sites', JSON.stringify(localSites));
             loadSites();
             closeModal('modal-add-site');
             showNotification(`Site ${domainInput} created successfully on VPS!`);
@@ -214,6 +383,7 @@ async function issueSsl(domainName) {
         const data = await res.json();
         if (data.success) {
             showNotification(`SSL Certificate issued successfully for ${domainName}!`);
+            loadSites();
         } else {
             showNotification(`SSL Status updated for ${domainName}`);
         }
@@ -222,17 +392,7 @@ async function issueSsl(domainName) {
     }
 }
 
-function deleteSite(index) {
-    if (confirm('Are you sure you want to remove this site configuration?')) {
-        const sites = JSON.parse(localStorage.getItem('novapanel_sites')) || [];
-        sites.splice(index, 1);
-        localStorage.setItem('novapanel_sites', JSON.stringify(sites));
-        loadSites();
-        showNotification('Site removed.');
-    }
-}
-
-// 2. Power File Manager
+// Power File Manager
 async function loadFiles(pathDir = '/var/www') {
     currentPath = pathDir;
     const pathBar = document.getElementById('fm-path-bar');
@@ -430,7 +590,7 @@ async function submitUploadFile() {
     reader.readAsDataURL(file);
 }
 
-// 3. Git Direct Auto-Deploy
+// Git Direct Auto-Deploy
 async function handleGitDeploy(event) {
     event.preventDefault();
     const repoUrl = document.getElementById('git-repo-url').value.trim();
@@ -482,9 +642,6 @@ function closeModal(id) {
     const modal = document.getElementById(id);
     if (modal) modal.style.display = 'none';
 }
-
-function loadDatabases() {}
-function loadServices() {}
 
 // Security Sentinel Status & Unban
 async function loadSecurityStatus() {

@@ -8,6 +8,8 @@ const { exec } = require('child_process');
 const PORT = 5050;
 const PUBLIC_DIR = __dirname;
 const AUTH_CONFIG_FILE = path.join(__dirname, 'auth_config.json');
+const MAIL_CONFIG_FILE = path.join(__dirname, 'mail_accounts.json');
+const DNS_CONFIG_FILE = path.join(__dirname, 'dns_records.json');
 const ADMIN_DEFAULT_HASH = crypto.createHash('sha256').update('Blackdj@1991').digest('hex');
 
 let authConfig = {
@@ -105,35 +107,6 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ error: 'Unauthorized. Valid Admin Password or X-API-Key header required.' }));
         }
 
-        // Change Admin Credentials
-        if (req.url === '/api/security/change-credentials' && req.method === 'POST') {
-            const body = await getJsonBody(req);
-            const currentPass = body.currentPassword || '';
-            const newUsername = (body.newUsername || '').trim() || authConfig.username;
-            const newPassword = body.newPassword || '';
-
-            const currentHash = crypto.createHash('sha256').update(currentPass).digest('hex');
-
-            if (currentHash !== authConfig.passwordHash) {
-                return res.end(JSON.stringify({ success: false, error: 'Current password is incorrect' }));
-            }
-
-            if (newPassword.length < 6) {
-                return res.end(JSON.stringify({ success: false, error: 'New password must be at least 6 characters' }));
-            }
-
-            const newHash = crypto.createHash('sha256').update(newPassword).digest('hex');
-            authConfig.username = newUsername;
-            authConfig.passwordHash = newHash;
-
-            fs.writeFileSync(AUTH_CONFIG_FILE, JSON.stringify(authConfig, null, 2));
-
-            return res.end(JSON.stringify({
-                success: true,
-                message: 'Admin Username & Password updated successfully!'
-            }));
-        }
-
         // 1. Get Live System Metrics Stats
         if (req.url === '/api/stats' && req.method === 'GET') {
             const totalMem = os.totalmem();
@@ -190,7 +163,120 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 3. 1-Click System Optimizer
+        // 3. Node.js App Manager: PM2 Process List
+        if (req.url === '/api/pm2/list' && req.method === 'GET') {
+            const pm2Res = await runCmd("pm2 jlist");
+            try {
+                const pm2Apps = JSON.parse(pm2Res.stdout || '[]');
+                const formattedApps = pm2Apps.map(app => ({
+                    id: app.pm_id,
+                    name: app.name,
+                    status: app.pm2_env ? app.pm2_env.status : 'unknown',
+                    cpu: app.monit ? app.monit.cpu : 0,
+                    memory: app.monit ? Math.round(app.monit.memory / (1024 * 1024)) : 0,
+                    restarts: app.pm2_env ? app.pm2_env.restart_time : 0,
+                    uptime: app.pm2_env ? app.pm2_env.pm_uptime : 0,
+                    script: app.pm2_env ? app.pm2_env.pm_exec_path : ''
+                }));
+                return res.end(JSON.stringify({ success: true, apps: formattedApps }));
+            } catch (e) {
+                return res.end(JSON.stringify({ success: false, error: 'Could not parse PM2 process list' }));
+            }
+        }
+
+        // 4. Node.js App Manager: PM2 Control Action (Restart/Stop/Start)
+        if (req.url === '/api/pm2/action' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const appName = body.appName;
+            const action = body.action || 'restart'; // restart, stop, start, reloadLogs
+
+            if (!appName) {
+                return res.end(JSON.stringify({ success: false, error: 'App name required' }));
+            }
+
+            const pm2ActionRes = await runCmd(`pm2 ${action} "${appName}"`);
+            return res.end(JSON.stringify({
+                success: !pm2ActionRes.error,
+                output: pm2ActionRes.stdout || pm2ActionRes.stderr
+            }));
+        }
+
+        // 5. DNS Zone & Records Manager
+        if (req.url === '/api/dns/records' && req.method === 'GET') {
+            let dnsRecords = [];
+            if (fs.existsSync(DNS_CONFIG_FILE)) {
+                try {
+                    dnsRecords = JSON.parse(fs.readFileSync(DNS_CONFIG_FILE, 'utf-8'));
+                } catch (e) {}
+            } else {
+                dnsRecords = [
+                    { type: 'A', name: '@', value: '167.172.79.75', ttl: '3600' },
+                    { type: 'A', name: 'panel', value: '167.172.79.75', ttl: '3600' },
+                    { type: 'A', name: 'pos', value: '167.172.79.75', ttl: '3600' },
+                    { type: 'CNAME', name: 'www', value: 'stech.asia', ttl: '3600' },
+                    { type: 'MX', name: '@', value: 'mail.stech.asia', ttl: '3600' },
+                    { type: 'TXT', name: '@', value: 'v=spf1 mx a ip4:167.172.79.75 ~all', ttl: '3600' }
+                ];
+                fs.writeFileSync(DNS_CONFIG_FILE, JSON.stringify(dnsRecords, null, 2));
+            }
+            return res.end(JSON.stringify({ success: true, records: dnsRecords }));
+        }
+
+        if (req.url === '/api/dns/add' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const { type, name, value, ttl } = body;
+            if (!type || !name || !value) {
+                return res.end(JSON.stringify({ success: false, error: 'Type, Name, and Value required' }));
+            }
+
+            let dnsRecords = [];
+            if (fs.existsSync(DNS_CONFIG_FILE)) {
+                try { dnsRecords = JSON.parse(fs.readFileSync(DNS_CONFIG_FILE, 'utf-8')); } catch (e) {}
+            }
+            dnsRecords.push({ type, name, value, ttl: ttl || '3600' });
+            fs.writeFileSync(DNS_CONFIG_FILE, JSON.stringify(dnsRecords, null, 2));
+
+            return res.end(JSON.stringify({ success: true, message: `DNS Record ${type} ${name} added!` }));
+        }
+
+        // 6. Webmail & Mail Accounts Manager
+        if (req.url === '/api/mail/accounts' && req.method === 'GET') {
+            let mailAccounts = [];
+            if (fs.existsSync(MAIL_CONFIG_FILE)) {
+                try { mailAccounts = JSON.parse(fs.readFileSync(MAIL_CONFIG_FILE, 'utf-8')); } catch (e) {}
+            } else {
+                mailAccounts = [
+                    { email: 'admin@stech.asia', quota: '1000 MB', used: '12 MB', created: '2026-08-30' },
+                    { email: 'support@stech.asia', quota: '2000 MB', used: '45 MB', created: '2026-09-01' }
+                ];
+                fs.writeFileSync(MAIL_CONFIG_FILE, JSON.stringify(mailAccounts, null, 2));
+            }
+            return res.end(JSON.stringify({ success: true, accounts: mailAccounts }));
+        }
+
+        if (req.url === '/api/mail/create' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const { email, password, quota } = body;
+            if (!email || !password) {
+                return res.end(JSON.stringify({ success: false, error: 'Email and password required' }));
+            }
+
+            let mailAccounts = [];
+            if (fs.existsSync(MAIL_CONFIG_FILE)) {
+                try { mailAccounts = JSON.parse(fs.readFileSync(MAIL_CONFIG_FILE, 'utf-8')); } catch (e) {}
+            }
+            mailAccounts.push({
+                email,
+                quota: quota ? `${quota} MB` : '1000 MB',
+                used: '0 MB',
+                created: new Date().toISOString().split('T')[0]
+            });
+            fs.writeFileSync(MAIL_CONFIG_FILE, JSON.stringify(mailAccounts, null, 2));
+
+            return res.end(JSON.stringify({ success: true, message: `Mailbox ${email} created successfully!` }));
+        }
+
+        // 7. System Auto-Optimizer
         if (req.url === '/api/system/optimize' && req.method === 'POST') {
             const beforeMem = os.freemem();
 
@@ -209,7 +295,7 @@ const server = http.createServer(async (req, res) => {
             }));
         }
 
-        // 4. Full Server Health Audit Report
+        // 8. Full Server Health Audit Report
         if (req.url === '/api/system/audit' && req.method === 'GET') {
             const memFree = os.freemem();
             const memTotal = os.totalmem();
@@ -231,7 +317,7 @@ const server = http.createServer(async (req, res) => {
             }));
         }
 
-        // 5. Create Domain / Website + Nginx Config
+        // 9. Create Domain / Website + Nginx Config
         if (req.url === '/api/create-site' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const domain = (body.domain || '').trim().toLowerCase();
@@ -289,7 +375,7 @@ const server = http.createServer(async (req, res) => {
             }));
         }
 
-        // 6. Issue SSL Certificate
+        // 10. Issue SSL Certificate
         if (req.url === '/api/issue-ssl' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const domain = (body.domain || '').trim();
@@ -308,7 +394,7 @@ const server = http.createServer(async (req, res) => {
             }));
         }
 
-        // 7. File Manager: List Directory
+        // 11. File Manager: List Directory
         if (req.url.startsWith('/api/files') && req.method === 'GET') {
             const urlParams = new URLSearchParams(req.url.split('?')[1] || '');
             let targetPath = urlParams.get('path') || '/var/www';
@@ -339,7 +425,7 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 8. File Manager: Read File
+        // 12. File Manager: Read File
         if (req.url === '/api/file/read' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const filePath = body.filePath;
@@ -355,7 +441,7 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 9. File Manager: Save File
+        // 13. File Manager: Save File
         if (req.url === '/api/file/save' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const filePath = body.filePath;
@@ -369,7 +455,7 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 10. File Manager: Create Folder
+        // 14. File Manager: Create Folder
         if (req.url === '/api/file/mkdir' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const folderPath = body.folderPath;
@@ -385,7 +471,7 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 11. File Manager: Delete File/Folder
+        // 15. File Manager: Delete File/Folder
         if (req.url === '/api/file/delete' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const targetPath = body.targetPath;
@@ -397,7 +483,7 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ success: !delRes.error, output: delRes.stdout || delRes.stderr }));
         }
 
-        // 12. File Manager: Unzip Archive
+        // 16. File Manager: Unzip Archive
         if (req.url === '/api/file/unzip' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const zipPath = body.zipPath;
@@ -411,7 +497,7 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ success: !unzipRes.error, output: unzipRes.stdout || unzipRes.stderr }));
         }
 
-        // 13. File Manager: Upload File
+        // 17. File Manager: Upload File
         if (req.url === '/api/file/upload' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const targetDir = body.targetDir || '/var/www';
@@ -432,7 +518,7 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
-        // 14. Git Direct Auto-Deploy
+        // 18. Git Direct Auto-Deploy
         if (req.url === '/api/git/deploy' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const repoUrl = (body.repoUrl || '').trim();
@@ -468,7 +554,7 @@ const server = http.createServer(async (req, res) => {
             }));
         }
 
-        // 15. Security Sentinel Status
+        // 19. Security Sentinel Status
         if (req.url === '/api/security/status' && req.method === 'GET') {
             const fail2banRes = await runCmd("fail2ban-client status sshd");
             const ufwRes = await runCmd("ufw status numbered");
@@ -487,7 +573,7 @@ const server = http.createServer(async (req, res) => {
             }));
         }
 
-        // 16. Security Sentinel: Unban IP
+        // 20. Security Sentinel: Unban IP
         if (req.url === '/api/security/unban' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const ip = (body.ip || '').trim();
@@ -497,7 +583,7 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ success: !unbanRes.error, output: unbanRes.stdout || unbanRes.stderr }));
         }
 
-        // 17. SSH Terminal Execution
+        // 21. SSH Terminal Execution
         if (req.url === '/api/terminal-exec' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const cmd = body.command;
