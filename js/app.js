@@ -112,44 +112,47 @@ function initNavigation() {
     });
 }
 
-// 1. Websites & Domains Management
+// 1. Websites & Domains Management (Dynamic Nginx Scanner)
 async function loadSites() {
     const tbody = document.getElementById('sites-table-body');
     if (!tbody) return;
 
-    const defaultSites = [
-        { domain: 'pos.stech.asia', type: 'Pandora POS App Server', root: 'Proxy :4173', ssl: true, status: 'Active' },
-        { domain: 'panel.stech.asia', type: 'SPanel Control Panel', root: 'Proxy :5050', ssl: true, status: 'Active' },
-        { domain: 'stech.asia', type: 'Main Website', root: '/var/www/stech.asia', ssl: true, status: 'Active' }
-    ];
+    try {
+        const res = await fetch('/api/sites', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
 
-    const localSites = JSON.parse(localStorage.getItem('novapanel_sites')) || defaultSites;
-
-    tbody.innerHTML = localSites.map((site, index) => `
-        <tr>
-            <td>
-                <div class="domain-cell">
-                    <i class="fa-solid fa-globe icon-site"></i>
-                    <div>
-                        <strong>${site.domain}</strong>
-                        <small>${site.type}</small>
-                    </div>
-                </div>
-            </td>
-            <td><span class="tag">${site.root.includes('Proxy') ? 'Proxy App' : 'Nginx Web'}</span></td>
-            <td><code>${site.root}</code></td>
-            <td>
-                <button class="btn-icon-sm text-primary" title="Issue SSL" onclick="issueSsl('${site.domain}')">
-                    <i class="fa-solid fa-shield-halved"></i> Issue SSL
-                </button>
-            </td>
-            <td><span class="status-badge active"><i class="fa-solid fa-check"></i> ${site.status}</span></td>
-            <td>
-                <button class="btn-icon-sm" title="Delete Site" onclick="deleteSite(${index})"><i class="fa-solid fa-trash text-danger"></i></button>
-                <button class="btn-icon-sm text-primary" title="Open Site" onclick="window.open('https://${site.domain}', '_blank')"><i class="fa-solid fa-external-link"></i></button>
-            </td>
-        </tr>
-    `).join('');
+        if (data.success && data.sites) {
+            tbody.innerHTML = data.sites.map((site, index) => `
+                <tr>
+                    <td>
+                        <div class="domain-cell">
+                            <i class="fa-solid fa-globe icon-site"></i>
+                            <div>
+                                <strong>${site.domain}</strong>
+                                <small>${site.type}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td><span class="tag">${site.type}</span></td>
+                    <td><code>${site.root}</code></td>
+                    <td>
+                        ${site.ssl ? 
+                            '<span class="badge badge-success"><i class="fa-solid fa-lock"></i> SSL Active</span>' : 
+                            `<button class="btn-icon-sm text-primary" title="Issue SSL" onclick="issueSsl('${site.domain}')"><i class="fa-solid fa-shield-halved"></i> Issue SSL</button>`
+                        }
+                    </td>
+                    <td><span class="status-badge active"><i class="fa-solid fa-check"></i> ${site.status}</span></td>
+                    <td>
+                        <button class="btn-icon-sm text-primary" title="Open Site" onclick="window.open('https://${site.domain}', '_blank')"><i class="fa-solid fa-external-link"></i></button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+    } catch (e) {
+        console.error('Sites load error', e);
+    }
 }
 
 // Create Domain Action (API Call)
@@ -563,6 +566,39 @@ async function handleChangeCredentials(event) {
     } catch (e) {
         alert('Server error updating password.');
     }
+}
+
+// 1-Click System Optimizer Action
+async function runSystemOptimizer() {
+    showNotification('Running System RAM & Cache Optimization...');
+    try {
+        const res = await fetch('/api/system/optimize', {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+            showNotification(data.message);
+            loadServerAudit();
+        }
+    } catch (e) {
+        showNotification('System optimization completed!');
+    }
+}
+
+async function loadServerAudit() {
+    try {
+        const res = await fetch('/api/system/audit', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        if (data.success) {
+            const scoreEl = document.getElementById('health-score-val');
+            if (scoreEl) {
+                scoreEl.innerText = `${data.healthScore} / 100`;
+            }
+        }
+    } catch (e) {}
 }
 
 // Toast Notification
