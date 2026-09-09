@@ -410,42 +410,76 @@
                     </div>
                 </section>
 
-                <!-- TAB 6: FILE MANAGER & EDITOR -->
+                <!-- TAB 6: FILE MANAGER & EDITOR (cPanel Suite) -->
                 <section id="tab-filemanager" class="tab-content">
-                    <div class="page-title-bar">
-                        <div>
-                            <h1>Power File Manager & Code Editor</h1>
-                            <p class="subtitle">Click or Double-Click Folders to Navigate, Click Files to Edit</p>
+                    <!-- cPanel Main Action Toolbar (Top Row) -->
+                    <div class="cpanel-fm-toolbar">
+                        <button class="cpanel-btn" onclick="openNewFileModal()"><i class="fa-solid fa-file-circle-plus"></i> File</button>
+                        <button class="cpanel-btn" onclick="openNewFolderModal()"><i class="fa-solid fa-folder-plus"></i> Folder</button>
+                        <div class="cpanel-divider"></div>
+                        <button class="cpanel-btn" id="cp-btn-copy" onclick="openCopyModal()" disabled><i class="fa-solid fa-copy"></i> Copy</button>
+                        <button class="cpanel-btn" id="cp-btn-move" onclick="openMoveModal()" disabled><i class="fa-solid fa-up-down-left-right"></i> Move</button>
+                        <button class="cpanel-btn" onclick="openUploadModal()"><i class="fa-solid fa-cloud-arrow-up"></i> Upload</button>
+                        <button class="cpanel-btn" id="cp-btn-download" onclick="downloadSelectedFile()" disabled><i class="fa-solid fa-download"></i> Download</button>
+                        <button class="cpanel-btn text-danger" id="cp-btn-delete" onclick="deleteSelected()" disabled><i class="fa-solid fa-trash-can"></i> Delete</button>
+                        <div class="cpanel-divider"></div>
+                        <button class="cpanel-btn" id="cp-btn-rename" onclick="openRenameModal()" disabled><i class="fa-solid fa-pen"></i> Rename</button>
+                        <button class="cpanel-btn" id="cp-btn-edit" onclick="editSelectedFile()" disabled><i class="fa-solid fa-code"></i> Edit</button>
+                        <button class="cpanel-btn" id="cp-btn-perms" onclick="openChmodModal()" disabled><i class="fa-solid fa-key"></i> Permissions</button>
+                        <button class="cpanel-btn" id="cp-btn-view" onclick="viewSelectedFile()" disabled><i class="fa-solid fa-eye"></i> View</button>
+                        <div class="cpanel-divider"></div>
+                        <button class="cpanel-btn text-warning" id="cp-btn-extract" onclick="extractSelectedZip()" disabled><i class="fa-solid fa-file-zipper"></i> Extract</button>
+                        <button class="cpanel-btn" id="cp-btn-compress" onclick="openCompressModal()" disabled><i class="fa-solid fa-file-arrow-down"></i> Compress</button>
+                    </div>
+
+                    <!-- cPanel Secondary Navigation Bar (Path & History Row) -->
+                    <div class="cpanel-fm-navbar">
+                        <div class="cpanel-nav-left">
+                            <i class="fa-solid fa-house cp-home-icon" onclick="loadFiles('/var/www')" title="Home /var/www"></i>
+                            <input type="text" id="cp-path-input" class="cpanel-path-box" value="/var/www" onkeydown="if(event.key==='Enter') navigateToPathInput()">
+                            <button class="btn btn-sm btn-secondary" onclick="navigateToPathInput()">Go</button>
                         </div>
-                        <div class="fm-actions" style="display:flex; gap:10px;">
-                            <button class="btn btn-secondary btn-sm" onclick="loadFiles('/var/www')"><i class="fa-solid fa-house"></i> Root /var/www</button>
-                            <button class="btn btn-secondary btn-sm" onclick="openNewFolderModal()"><i class="fa-solid fa-folder-plus"></i> New Folder</button>
-                            <button class="btn btn-primary btn-sm" onclick="openUploadModal()"><i class="fa-solid fa-cloud-arrow-up"></i> Upload File</button>
-                            <button class="btn btn-secondary btn-sm" onclick="loadFiles(currentPath)"><i class="fa-solid fa-arrows-rotate"></i> Refresh</button>
+                        <div class="cpanel-nav-right">
+                            <button class="cpanel-nav-btn" onclick="navigateUpLevel()" title="Up One Level"><i class="fa-solid fa-arrow-turn-up"></i> Up One Level</button>
+                            <button class="cpanel-nav-btn" onclick="navigateBack()" title="Back"><i class="fa-solid fa-arrow-left"></i> Back</button>
+                            <button class="cpanel-nav-btn" onclick="navigateForward()" title="Forward"><i class="fa-solid fa-arrow-right"></i> Forward</button>
+                            <button class="cpanel-nav-btn" onclick="loadFiles(currentPath)" title="Reload"><i class="fa-solid fa-rotate-right"></i> Reload</button>
+                            <button class="cpanel-nav-btn" onclick="toggleSelectAll(true)" title="Select All"><i class="fa-solid fa-square-check"></i> Select All</button>
+                            <button class="cpanel-nav-btn" onclick="toggleSelectAll(false)" title="Unselect All"><i class="fa-regular fa-square"></i> Unselect All</button>
                         </div>
                     </div>
 
-                    <div class="file-manager-container card">
-                        <div class="fm-breadcrumb" id="fm-path-bar">
-                            <span class="path-segment"><i class="fa-solid fa-folder-tree"></i> Location: <strong>/var/www</strong></span>
+                    <!-- cPanel Two-Column Split Layout -->
+                    <div class="cpanel-fm-body">
+                        <!-- Left Directory Tree Pane -->
+                        <div class="cpanel-tree-pane">
+                            <div class="cpanel-tree-header">
+                                <span><i class="fa-solid fa-folder-tree"></i> /var/www</span>
+                                <button class="btn-icon-sm" onclick="loadDirectoryTree('/var/www')" title="Refresh Tree"><i class="fa-solid fa-arrows-rotate"></i></button>
+                            </div>
+                            <div class="cpanel-tree-content" id="cpanel-dir-tree">
+                                <!-- Populated dynamically -->
+                            </div>
                         </div>
 
-                        <div class="fm-grid-list">
-                            <table class="custom-table file-table">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 40px;"><input type="checkbox"></th>
-                                        <th>Name</th>
-                                        <th>Size</th>
-                                        <th>Permissions</th>
-                                        <th>Last Modified</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="fm-file-list">
-                                    <!-- Populated dynamically -->
-                                </tbody>
-                            </table>
+                        <!-- Right Main Files Table Pane -->
+                        <div class="cpanel-file-pane">
+                            <div class="table-responsive" style="height: 100%;">
+                                <table class="custom-table cpanel-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 36px;"><input type="checkbox" id="cp-select-all-box" onchange="toggleSelectAll(this.checked)"></th>
+                                            <th>Name</th>
+                                            <th style="width: 110px;">Size</th>
+                                            <th style="width: 100px;">Permissions</th>
+                                            <th style="width: 180px;">Last Modified</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="fm-file-list">
+                                        <!-- Populated dynamically from loadFiles -->
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -865,6 +899,189 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('modal-upload-file')">Cancel</button>
                 <button class="btn btn-primary" onclick="submitUploadFile()">Upload to Server</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialog: New File (cPanel) -->
+    <div class="modal-backdrop" id="modal-new-file">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-file-circle-plus text-primary"></i> Create New File</h3>
+                <button class="btn-close" onclick="closeModal('modal-new-file')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>New File Name (e.g. index.php, style.css, app.js)</label>
+                    <input type="text" id="new-file-input" class="form-control" placeholder="newfile.txt" onkeydown="if(event.key==='Enter') submitCreateFile()">
+                </div>
+                <small style="color:var(--text-muted);">Will be created in: <strong id="new-file-dir-hint">/var/www</strong></small>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-new-file')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitCreateFile()">Create New File</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialog: Rename (cPanel) -->
+    <div class="modal-backdrop" id="modal-rename-file">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-pen text-warning"></i> Rename Item</h3>
+                <button class="btn-close" onclick="closeModal('modal-rename-file')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="rename-target-path">
+                <div class="form-group">
+                    <label>New Name</label>
+                    <input type="text" id="rename-new-name" class="form-control" onkeydown="if(event.key==='Enter') submitRename()">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-rename-file')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitRename()">Rename File / Folder</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialog: Copy (cPanel) -->
+    <div class="modal-backdrop" id="modal-copy-file">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-copy text-primary"></i> Copy Item</h3>
+                <button class="btn-close" onclick="closeModal('modal-copy-file')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="copy-source-path">
+                <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">Copying: <strong id="copy-source-label" style="color:#fff;">--</strong></p>
+                <div class="form-group">
+                    <label>Destination Directory Path</label>
+                    <input type="text" id="copy-target-dir" class="form-control" value="/var/www">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-copy-file')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitCopy()">Copy Item</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialog: Move (cPanel) -->
+    <div class="modal-backdrop" id="modal-move-file">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-up-down-left-right text-warning"></i> Move Item</h3>
+                <button class="btn-close" onclick="closeModal('modal-move-file')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="move-source-path">
+                <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">Moving: <strong id="move-source-label" style="color:#fff;">--</strong></p>
+                <div class="form-group">
+                    <label>Destination Directory Path</label>
+                    <input type="text" id="move-target-dir" class="form-control" value="/var/www">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-move-file')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitMove()">Move Item</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialog: Change Permissions (cPanel) -->
+    <div class="modal-backdrop" id="modal-chmod-file">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-key text-success"></i> Change Permissions</h3>
+                <button class="btn-close" onclick="closeModal('modal-chmod-file')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="chmod-target-path">
+                <p style="font-size:13px; color:var(--text-muted); margin-bottom:16px;">Target: <strong id="chmod-target-label" style="color:#fff;">--</strong></p>
+                
+                <table class="custom-table" style="font-size:12px; margin-bottom:16px;">
+                    <thead>
+                        <tr>
+                            <th>Mode</th>
+                            <th>User (Owner)</th>
+                            <th>Group</th>
+                            <th>World (Others)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Read</td>
+                            <td><input type="checkbox" id="perm-ur" onchange="calcPerms()"></td>
+                            <td><input type="checkbox" id="perm-gr" onchange="calcPerms()"></td>
+                            <td><input type="checkbox" id="perm-or" onchange="calcPerms()"></td>
+                        </tr>
+                        <tr>
+                            <td>Write</td>
+                            <td><input type="checkbox" id="perm-uw" onchange="calcPerms()"></td>
+                            <td><input type="checkbox" id="perm-gw" onchange="calcPerms()"></td>
+                            <td><input type="checkbox" id="perm-ow" onchange="calcPerms()"></td>
+                        </tr>
+                        <tr>
+                            <td>Execute</td>
+                            <td><input type="checkbox" id="perm-ux" onchange="calcPerms()"></td>
+                            <td><input type="checkbox" id="perm-gx" onchange="calcPerms()"></td>
+                            <td><input type="checkbox" id="perm-ox" onchange="calcPerms()"></td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="form-group" style="display:flex; align-items:center; gap:10px;">
+                    <label style="margin:0;">Permission Octal:</label>
+                    <input type="text" id="chmod-octal-val" class="form-control" style="width:100px; text-align:center; font-family:var(--font-mono); font-size:16px; font-weight:700;" value="0644" oninput="parsePermOctal(this.value)">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-chmod-file')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitChmod()">Change Permissions</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialog: Compress to ZIP (cPanel) -->
+    <div class="modal-backdrop" id="modal-compress-file">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-file-arrow-down text-primary"></i> Compress Items</h3>
+                <button class="btn-close" onclick="closeModal('modal-compress-file')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="font-size:13px; color:var(--text-muted); margin-bottom:12px;">Items to compress: <strong id="compress-items-count" style="color:#fff;">1 item</strong></p>
+                <div class="form-group">
+                    <label>Compression Type</label>
+                    <select class="form-control" id="compress-type-select">
+                        <option value="zip">Zip Archive (.zip)</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Archive Name</label>
+                    <input type="text" id="compress-zip-name" class="form-control" placeholder="archive.zip">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-compress-file')">Cancel</button>
+                <button class="btn btn-primary" onclick="submitCompress()">Compress Files</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Dialog: Quick View (cPanel) -->
+    <div class="modal-backdrop" id="modal-view-file">
+        <div class="modal-card" style="max-width: 800px; width: 95%;">
+            <div class="modal-header">
+                <h3><i class="fa-solid fa-eye text-primary"></i> <span id="view-file-title">File Preview</span></h3>
+                <button class="btn-close" onclick="closeModal('modal-view-file')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <pre id="view-content-area" style="font-family: var(--font-mono); font-size: 13px; max-height: 420px; overflow: auto; background: #050811; color: #93c5fd; padding: 16px; border-radius: 8px; line-height: 1.5; white-space: pre; margin: 0;"></pre>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('modal-view-file')">Close</button>
             </div>
         </div>
     </div>

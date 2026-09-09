@@ -121,9 +121,10 @@ function initNavigation() {
             if (targetEl) targetEl.classList.add('active');
 
             // Auto-load tab data on switch
-            if (targetTab === 'security') loadSecurityStatus();
-            if (targetTab === 'docker')    loadContainers();
-            if (targetTab === 'processes') loadProcesses();
+            if (targetTab === 'security')    loadSecurityStatus();
+            if (targetTab === 'docker')      loadContainers();
+            if (targetTab === 'processes')   loadProcesses();
+            if (targetTab === 'filemanager') { loadFiles(currentPath); loadDirectoryTree('/var/www'); }
         });
     });
 }
@@ -347,25 +348,39 @@ function renderBreadcrumb(pathDir) {
     const pathBar = document.getElementById('fm-path-bar');
     if (!pathBar) return;
 
-    const parts = pathDir.split('/').filter(Boolean);
-    let cumulativePath = '';
-    let html = `<span class="path-segment" style="cursor:pointer;" onclick="loadFiles('/var/www')"><i class="fa-solid fa-house"></i> Root</span>`;
+// ============================================================
+// cPanel File Manager Engine Suite
+// ============================================================
+let currentPath = '/var/www';
+let currentFileList = [];
+let selectedItems = new Set();
+let pathHistory = ['/var/www'];
+let historyIndex = 0;
 
-    parts.forEach(part => {
-        cumulativePath += '/' + part;
-        const target = cumulativePath;
-        html += ` <span style="color:var(--text-muted);">/</span> <span class="path-segment" style="cursor:pointer; font-weight:600;" onclick="loadFiles('${target}')">${part}</span>`;
-    });
-
-    pathBar.innerHTML = html;
-}
-
-async function loadFiles(pathDir = '/var/www') {
+async function loadFiles(pathDir = '/var/www', addToHistory = true) {
     currentPath = pathDir;
-    renderBreadcrumb(pathDir);
+    selectedItems.clear();
+    updateToolbarState();
+
+    // Update path input box
+    const pathInput = document.getElementById('cp-path-input');
+    if (pathInput) pathInput.value = pathDir;
+
+    // History tracking
+    if (addToHistory) {
+        if (historyIndex < pathHistory.length - 1) {
+            pathHistory = pathHistory.slice(0, historyIndex + 1);
+        }
+        if (pathHistory[pathHistory.length - 1] !== pathDir) {
+            pathHistory.push(pathDir);
+            historyIndex = pathHistory.length - 1;
+        }
+    }
 
     const tbody = document.getElementById('fm-file-list');
     if (!tbody) return;
+
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Loading directory...</td></tr>`;
 
     try {
         const res = await fetch(`/api/files?path=${encodeURIComponent(pathDir)}`, {
@@ -375,62 +390,546 @@ async function loadFiles(pathDir = '/var/www') {
 
         if (data.success && data.files) {
             currentFileList = data.files;
-            tbody.innerHTML = data.files.map((f, i) => {
-                const isZip = f.name.endsWith('.zip');
-                return `
-                <tr style="cursor:pointer;" onclick="handleFileItemClick(${i})" ondblclick="handleFileItemClick(${i})">
-                    <td><input type="checkbox" onclick="event.stopPropagation()"></td>
-                    <td>
-                        <i class="${f.isDir ? 'fa-solid fa-folder text-warning' : 'fa-solid fa-file-code text-primary'}"></i>
-                        <strong style="margin-left:8px; color:#f8fafc;">${f.name}</strong>
-                    </td>
-                    <td>${f.size}</td>
-                    <td><code>${f.perm}</code></td>
-                    <td>${f.mtime}</td>
-                    <td onclick="event.stopPropagation()">
-                        ${f.isDir ? 
-                            `<button class="btn-icon-sm text-primary" title="Open Folder" onclick="loadFiles('${f.path.replace(/\\/g, '/')}')"><i class="fa-solid fa-folder-open"></i> Open</button>` : 
-                            `<button class="btn-icon-sm text-primary" title="Edit File" onclick="editFileIndex(${i})"><i class="fa-solid fa-pen-to-square"></i> Edit</button>`
-                        }
-                        ${isZip ? `<button class="btn-icon-sm text-warning" title="Extract ZIP" onclick="unzipFileIndex(${i})"><i class="fa-solid fa-file-zipper"></i> Extract</button>` : ''}
-                        <button class="btn-icon-sm text-danger" title="Delete" onclick="deleteFileIndex(${i})"><i class="fa-solid fa-trash"></i> Delete</button>
-                    </td>
-                </tr>
-            `}).join('');
+
+            // Sort: folders first, then files
+            currentFileList.sort((a, b) => {
+                if (a.isDir && !b.isDir) return -1;
+                if (!a.isDir && b.isDir) return 1;
+                return a.name.localeCompare(b.name);
+            });
+
+            if (currentFileList.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:30px; color:var(--text-muted);"><i class="fa-regular fa-folder-open"></i> This directory is empty.</td></tr>`;
+            } else {
+                tbody.innerHTML = currentFileList.map((f, i) => {
+                    const isZip = f.name.endsWith('.zip') || f.name.endsWith('.tar.gz');
+                    const iconClass = f.isDir 
+                        ? 'fa-solid fa-folder text-warning' 
+                        : (isZip ? 'fa-solid fa-file-zipper text-warning' : (f.name.endsWith('.php') || f.name.endsWith('.js') || f.name.endsWith('.html') ? 'fa-solid fa-file-code text-primary' : 'fa-regular fa-file text-muted'));
+
+                    return `
+                    <tr id="file-row-${i}" onclick="handleFileRowClick(event, ${i})" ondblclick="handleFileRowDblClick(${i})">
+                        <td style="text-align:center;" onclick="event.stopPropagation()">
+                            <input type="checkbox" id="file-cb-${i}" onchange="toggleItemSelect(${i}, this.checked)">
+                        </td>
+                        <td>
+                            <i class="${iconClass}" style="margin-right:8px; font-size:14px;"></i>
+                            <strong style="color:#f8fafc;">${f.name}</strong>
+                        </td>
+                        <td><span style="font-size:12px; color:var(--text-muted);">${f.size}</span></td>
+                        <td><code style="font-size:11px;">${f.perm}</code></td>
+                        <td><span style="font-size:12px; color:var(--text-muted);">${f.mtime}</span></td>
+                    </tr>`;
+                }).join('');
+            }
+
+            // Sync directory tree
+            loadDirectoryTree('/var/www');
+        } else {
+            tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#ef4444; padding:20px;">Error: ${data.error || 'Failed to read directory'}</td></tr>`;
         }
     } catch (e) {
-        console.error('File manager load error', e);
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center; color:#ef4444; padding:20px;">Load error: ${e.message}</td></tr>`;
     }
 }
 
-function handleFileItemClick(index) {
-    const fileItem = currentFileList[index];
-    if (!fileItem) return;
-
-    if (fileItem.isDir) {
-        loadFiles(fileItem.path.replace(/\\/g, '/'));
+// Single click = Select row
+function handleFileRowClick(event, index) {
+    if (event.ctrlKey || event.metaKey) {
+        // Multi-select toggle
+        if (selectedItems.has(index)) {
+            selectedItems.delete(index);
+        } else {
+            selectedItems.add(index);
+        }
     } else {
-        editFileIndex(index);
+        // Single select
+        selectedItems.clear();
+        selectedItems.add(index);
+    }
+    syncRowSelectionUI();
+    updateToolbarState();
+}
+
+// Double click = Open folder or Edit file
+function handleFileRowDblClick(index) {
+    const item = currentFileList[index];
+    if (!item) return;
+    if (item.isDir) {
+        loadFiles(item.path.replace(/\\/g, '/'));
+    } else {
+        editFileByPath(item.path.replace(/\\/g, '/'), item.name);
     }
 }
 
-async function editFileIndex(index) {
-    const fileItem = currentFileList[index];
-    if (!fileItem) return;
+function toggleItemSelect(index, isChecked) {
+    if (isChecked) {
+        selectedItems.add(index);
+    } else {
+        selectedItems.delete(index);
+    }
+    syncRowSelectionUI();
+    updateToolbarState();
+}
 
-    const filePath = fileItem.path.replace(/\\/g, '/');
+function syncRowSelectionUI() {
+    currentFileList.forEach((_, i) => {
+        const row = document.getElementById(`file-row-${i}`);
+        const cb = document.getElementById(`file-cb-${i}`);
+        const isSel = selectedItems.has(i);
+        if (row) row.classList.toggle('row-selected', isSel);
+        if (cb) cb.checked = isSel;
+    });
+
+    const selectAllBox = document.getElementById('cp-select-all-box');
+    if (selectAllBox) {
+        selectAllBox.checked = currentFileList.length > 0 && selectedItems.size === currentFileList.length;
+    }
+}
+
+function toggleSelectAll(selectAll) {
+    selectedItems.clear();
+    if (selectAll) {
+        currentFileList.forEach((_, i) => selectedItems.add(i));
+    }
+    syncRowSelectionUI();
+    updateToolbarState();
+}
+
+// Update cPanel Toolbar active/disabled states
+function updateToolbarState() {
+    const count = selectedItems.size;
+    const firstIdx = selectedItems.values().next().value;
+    const firstItem = firstIdx !== undefined ? currentFileList[firstIdx] : null;
+    const isSingle = count === 1;
+    const isFile = isSingle && firstItem && !firstItem.isDir;
+    const isZip = isSingle && firstItem && (firstItem.name.endsWith('.zip') || firstItem.name.endsWith('.tar.gz'));
+
+    const setBtn = (id, enabled) => {
+        const el = document.getElementById(id);
+        if (el) el.disabled = !enabled;
+    };
+
+    setBtn('cp-btn-copy', count > 0);
+    setBtn('cp-btn-move', count > 0);
+    setBtn('cp-btn-download', isFile);
+    setBtn('cp-btn-delete', count > 0);
+    setBtn('cp-btn-rename', isSingle);
+    setBtn('cp-btn-edit', isFile);
+    setBtn('cp-btn-perms', isSingle);
+    setBtn('cp-btn-view', isFile);
+    setBtn('cp-btn-extract', isZip);
+    setBtn('cp-btn-compress', count > 0);
+}
+
+// Navigation helpers
+function navigateToPathInput() {
+    const input = document.getElementById('cp-path-input');
+    if (input && input.value.trim()) {
+        loadFiles(input.value.trim());
+    }
+}
+
+function navigateUpLevel() {
+    if (currentPath === '/var/www' || currentPath === '/') return;
+    const parts = currentPath.replace(/\/+$/, '').split('/');
+    parts.pop();
+    const parentPath = parts.join('/') || '/var/www';
+    loadFiles(parentPath);
+}
+
+function navigateBack() {
+    if (historyIndex > 0) {
+        historyIndex--;
+        loadFiles(pathHistory[historyIndex], false);
+    }
+}
+
+function navigateForward() {
+    if (historyIndex < pathHistory.length - 1) {
+        historyIndex++;
+        loadFiles(pathHistory[historyIndex], false);
+    }
+}
+
+// Folder Tree Navigation
+async function loadDirectoryTree(rootPath = '/var/www') {
+    const treeEl = document.getElementById('cpanel-dir-tree');
+    if (!treeEl) return;
+
+    try {
+        const res = await fetch(`/api/file/tree?path=${encodeURIComponent(rootPath)}`, {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        if (data.success && data.folders) {
+            let html = `
+                <div class="tree-node ${currentPath === '/var/www' ? 'active' : ''}" onclick="loadFiles('/var/www')">
+                    <i class="fa-solid fa-house" style="color:#38bdf8;"></i>
+                    <span>/var/www</span>
+                </div>
+            `;
+            data.folders.forEach(f => {
+                const isActive = currentPath === f.path;
+                html += `
+                <div class="tree-node ${isActive ? 'active' : ''}" style="padding-left: 20px;" onclick="loadFiles('${f.path}')">
+                    <i class="fa-solid fa-folder folder-icon"></i>
+                    <span>${f.name}</span>
+                </div>`;
+            });
+            treeEl.innerHTML = html;
+        }
+    } catch (e) {}
+}
+
+// ============================================================
+// cPanel Action Handlers
+// ============================================================
+
+// 1. Create File
+function openNewFileModal() {
+    const dirHint = document.getElementById('new-file-dir-hint');
+    const input = document.getElementById('new-file-input');
+    if (dirHint) dirHint.innerText = currentPath;
+    if (input) input.value = '';
+    const modal = document.getElementById('modal-new-file');
+    if (modal) modal.style.display = 'flex';
+    setTimeout(() => input && input.focus(), 100);
+}
+
+async function submitCreateFile() {
+    const fileName = document.getElementById('new-file-input').value.trim();
+    if (!fileName) {
+        alert('Please enter a file name');
+        return;
+    }
+    const res = await fetch('/api/file/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ targetDir: currentPath, fileName })
+    });
+    const data = await res.json();
+    if (data.success) {
+        closeModal('modal-new-file');
+        showNotification(data.message);
+        loadFiles(currentPath);
+    } else {
+        alert('Create file error: ' + data.error);
+    }
+}
+
+// 2. Create Folder
+function openNewFolderModal() {
+    const input = document.getElementById('new-folder-input');
+    if (input) input.value = '';
+    const modal = document.getElementById('modal-new-folder');
+    if (modal) modal.style.display = 'flex';
+    setTimeout(() => input && input.focus(), 100);
+}
+
+async function submitCreateFolder() {
+    const folderName = document.getElementById('new-folder-input').value.trim();
+    if (!folderName) return;
+
+    const folderPath = `${currentPath}/${folderName}`;
+    const res = await fetch('/api/file/mkdir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ folderPath })
+    });
+    const data = await res.json();
+    if (data.success) {
+        closeModal('modal-new-folder');
+        showNotification(`Folder ${folderName} created!`);
+        loadFiles(currentPath);
+    } else {
+        alert('Error: ' + data.error);
+    }
+}
+
+// 3. Rename File/Folder
+function openRenameModal() {
+    const firstIdx = selectedItems.values().next().value;
+    const item = currentFileList[firstIdx];
+    if (!item) return;
+
+    document.getElementById('rename-target-path').value = item.path.replace(/\\/g, '/');
+    const input = document.getElementById('rename-new-name');
+    if (input) input.value = item.name;
+
+    const modal = document.getElementById('modal-rename-file');
+    if (modal) modal.style.display = 'flex';
+    setTimeout(() => input && input.focus(), 100);
+}
+
+async function submitRename() {
+    const oldPath = document.getElementById('rename-target-path').value;
+    const newName = document.getElementById('rename-new-name').value.trim();
+    if (!newName) return;
+
+    const res = await fetch('/api/file/rename', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ oldPath, newName })
+    });
+    const data = await res.json();
+    if (data.success) {
+        closeModal('modal-rename-file');
+        showNotification(data.message);
+        loadFiles(currentPath);
+    } else {
+        alert('Rename error: ' + data.error);
+    }
+}
+
+// 4. Copy Item
+function openCopyModal() {
+    const firstIdx = selectedItems.values().next().value;
+    const item = currentFileList[firstIdx];
+    if (!item) return;
+
+    document.getElementById('copy-source-path').value = item.path.replace(/\\/g, '/');
+    document.getElementById('copy-source-label').innerText = item.name;
+    document.getElementById('copy-target-dir').value = currentPath;
+
+    const modal = document.getElementById('modal-copy-file');
+    if (modal) modal.style.display = 'flex';
+}
+
+async function submitCopy() {
+    const sourcePath = document.getElementById('copy-source-path').value;
+    const targetDir = document.getElementById('copy-target-dir').value.trim();
+    if (!targetDir) return;
+
+    const res = await fetch('/api/file/copy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ sourcePath, targetDir })
+    });
+    const data = await res.json();
+    if (data.success) {
+        closeModal('modal-copy-file');
+        showNotification(data.message);
+        loadFiles(currentPath);
+    } else {
+        alert('Copy error: ' + data.error);
+    }
+}
+
+// 5. Move Item
+function openMoveModal() {
+    const firstIdx = selectedItems.values().next().value;
+    const item = currentFileList[firstIdx];
+    if (!item) return;
+
+    document.getElementById('move-source-path').value = item.path.replace(/\\/g, '/');
+    document.getElementById('move-source-label').innerText = item.name;
+    document.getElementById('move-target-dir').value = currentPath;
+
+    const modal = document.getElementById('modal-move-file');
+    if (modal) modal.style.display = 'flex';
+}
+
+async function submitMove() {
+    const sourcePath = document.getElementById('move-source-path').value;
+    const targetDir = document.getElementById('move-target-dir').value.trim();
+    if (!targetDir) return;
+
+    const res = await fetch('/api/file/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ sourcePath, targetDir })
+    });
+    const data = await res.json();
+    if (data.success) {
+        closeModal('modal-move-file');
+        showNotification(data.message);
+        loadFiles(currentPath);
+    } else {
+        alert('Move error: ' + data.error);
+    }
+}
+
+// 6. Permissions (Chmod)
+function openChmodModal() {
+    const firstIdx = selectedItems.values().next().value;
+    const item = currentFileList[firstIdx];
+    if (!item) return;
+
+    document.getElementById('chmod-target-path').value = item.path.replace(/\\/g, '/');
+    document.getElementById('chmod-target-label').innerText = `${item.name} (${item.perm})`;
+    parsePermOctal(item.perm);
+
+    const modal = document.getElementById('modal-chmod-file');
+    if (modal) modal.style.display = 'flex';
+}
+
+function parsePermOctal(octalStr) {
+    const digits = octalStr.replace(/^0+/, '').padStart(3, '0');
+    const u = parseInt(digits[0]) || 0;
+    const g = parseInt(digits[1]) || 0;
+    const o = parseInt(digits[2]) || 0;
+
+    const setCb = (id, val) => { const el = document.getElementById(id); if (el) el.checked = !!val; };
+    setCb('perm-ur', u & 4); setCb('perm-uw', u & 2); setCb('perm-ux', u & 1);
+    setCb('perm-gr', g & 4); setCb('perm-gw', g & 2); setCb('perm-gx', g & 1);
+    setCb('perm-or', o & 4); setCb('perm-ow', o & 2); setCb('perm-ox', o & 1);
+
+    const octInput = document.getElementById('chmod-octal-val');
+    if (octInput && octInput.value !== octalStr) octInput.value = '0' + digits;
+}
+
+function calcPerms() {
+    const getVal = (r, w, x) => {
+        let n = 0;
+        if (document.getElementById(r)?.checked) n += 4;
+        if (document.getElementById(w)?.checked) n += 2;
+        if (document.getElementById(x)?.checked) n += 1;
+        return n;
+    };
+    const u = getVal('perm-ur', 'perm-uw', 'perm-ux');
+    const g = getVal('perm-gr', 'perm-gw', 'perm-gx');
+    const o = getVal('perm-or', 'perm-ow', 'perm-ox');
+    const octal = `0${u}${g}${o}`;
+    const octInput = document.getElementById('chmod-octal-val');
+    if (octInput) octInput.value = octal;
+}
+
+async function submitChmod() {
+    const targetPath = document.getElementById('chmod-target-path').value;
+    const mode = document.getElementById('chmod-octal-val').value.trim();
+
+    const res = await fetch('/api/file/chmod', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ targetPath, mode })
+    });
+    const data = await res.json();
+    if (data.success) {
+        closeModal('modal-chmod-file');
+        showNotification(data.message);
+        loadFiles(currentPath);
+    } else {
+        alert('Permission error: ' + data.error);
+    }
+}
+
+// 7. Compress to ZIP
+function openCompressModal() {
+    const count = selectedItems.size;
+    if (!count) return;
+
+    document.getElementById('compress-items-count').innerText = `${count} item(s) selected`;
+    const firstIdx = selectedItems.values().next().value;
+    const firstItem = currentFileList[firstIdx];
+    const defaultName = (count === 1 ? firstItem.name.replace(/\.[^/.]+$/, '') : 'archive') + '.zip';
+    document.getElementById('compress-zip-name').value = defaultName;
+
+    const modal = document.getElementById('modal-compress-file');
+    if (modal) modal.style.display = 'flex';
+}
+
+async function submitCompress() {
+    const zipName = document.getElementById('compress-zip-name').value.trim();
+    if (!zipName) return;
+
+    const items = Array.from(selectedItems).map(i => currentFileList[i].path.replace(/\\/g, '/'));
+    showNotification(`Compressing ${items.length} items to ${zipName}...`);
+
+    const res = await fetch('/api/file/compress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ items, zipName, targetDir: currentPath })
+    });
+    const data = await res.json();
+    if (data.success) {
+        closeModal('modal-compress-file');
+        showNotification(`Created archive ${zipName}!`);
+        loadFiles(currentPath);
+    } else {
+        alert('Compression error: ' + (data.output || data.error));
+    }
+}
+
+// 8. Extract ZIP
+async function extractSelectedZip() {
+    const firstIdx = selectedItems.values().next().value;
+    const item = currentFileList[firstIdx];
+    if (!item) return;
+
+    if (!confirm(`Extract archive ${item.name} to current directory?`)) return;
+    showNotification(`Extracting ${item.name}...`);
+
+    const res = await fetch('/api/file/unzip', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+        body: JSON.stringify({ zipPath: item.path.replace(/\\/g, '/'), destDir: currentPath })
+    });
+    const data = await res.json();
+    if (data.success) {
+        showNotification('Archive extracted successfully!');
+        loadFiles(currentPath);
+    } else {
+        alert('Extract error: ' + (data.output || data.error));
+    }
+}
+
+// 9. Download File
+function downloadSelectedFile() {
+    const firstIdx = selectedItems.values().next().value;
+    const item = currentFileList[firstIdx];
+    if (!item || item.isDir) return;
+
+    const cleanPath = item.path.replace(/\\/g, '/');
+    const downloadUrl = `/api/file/download?path=${encodeURIComponent(cleanPath)}`;
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.download = item.name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+}
+
+// 10. Delete Selected Items
+async function deleteSelected() {
+    const count = selectedItems.size;
+    if (!count) return;
+
+    const names = Array.from(selectedItems).map(i => currentFileList[i].name).join(', ');
+    if (!confirm(`Are you sure you want to permanently delete (${count}) item(s)?\n\n${names}`)) return;
+
+    for (const idx of selectedItems) {
+        const item = currentFileList[idx];
+        if (item) {
+            await fetch('/api/file/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+                body: JSON.stringify({ targetPath: item.path.replace(/\\/g, '/') })
+            });
+        }
+    }
+    showNotification(`Deleted ${count} item(s)`);
+    loadFiles(currentPath);
+}
+
+// 11. Edit Selected File
+function editSelectedFile() {
+    const firstIdx = selectedItems.values().next().value;
+    const item = currentFileList[firstIdx];
+    if (!item || item.isDir) return;
+    editFileByPath(item.path.replace(/\\/g, '/'), item.name);
+}
+
+async function editFileByPath(filePath, fileName) {
     try {
         const res = await fetch('/api/file/read', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
             body: JSON.stringify({ filePath })
         });
         const data = await res.json();
         if (data.success) {
-            document.getElementById('editor-file-title').innerText = `Edit: ${fileItem.name}`;
+            document.getElementById('editor-file-title').innerText = `Edit: ${fileName || filePath}`;
             document.getElementById('editor-file-path').value = filePath;
             document.getElementById('editor-content-area').value = data.content;
             
@@ -450,103 +949,46 @@ async function submitSaveFile() {
 
     const res = await fetch('/api/file/save', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authToken}`
-        },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
         body: JSON.stringify({ filePath, content })
     });
     const data = await res.json();
     if (data.success) {
         closeModal('modal-edit-file');
-        showNotification(`File ${filePath} saved & overwritten successfully!`);
+        showNotification(`File saved successfully!`);
         loadFiles(currentPath);
     } else {
         alert('Save error: ' + data.error);
     }
 }
 
-function unzipFileIndex(index) {
-    const fileItem = currentFileList[index];
-    if (fileItem) unzipFile(fileItem.path.replace(/\\/g, '/'));
-}
+// 12. Quick View Preview
+async function viewSelectedFile() {
+    const firstIdx = selectedItems.values().next().value;
+    const item = currentFileList[firstIdx];
+    if (!item || item.isDir) return;
 
-function deleteFileIndex(index) {
-    const fileItem = currentFileList[index];
-    if (fileItem) deleteFileOrFolder(fileItem.path.replace(/\\/g, '/'));
-}
-
-// File Manager: Create Folder
-function openNewFolderModal() {
-    const modal = document.getElementById('modal-new-folder');
-    if (modal) modal.style.display = 'flex';
-}
-
-async function submitCreateFolder() {
-    const folderName = document.getElementById('new-folder-input').value.trim();
-    if (!folderName) return;
-
-    const folderPath = `${currentPath}/${folderName}`;
-    const res = await fetch('/api/file/mkdir', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authToken}`
-        },
-        body: JSON.stringify({ folderPath })
-    });
-    const data = await res.json();
-    if (data.success) {
-        closeModal('modal-new-folder');
-        showNotification(`Folder ${folderName} created!`);
-        loadFiles(currentPath);
-    } else {
-        alert('Error: ' + data.error);
+    try {
+        const res = await fetch('/api/file/read', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
+            body: JSON.stringify({ filePath: item.path.replace(/\\/g, '/') })
+        });
+        const data = await res.json();
+        if (data.success) {
+            document.getElementById('view-file-title').innerText = `Preview: ${item.name}`;
+            document.getElementById('view-content-area').innerText = data.content;
+            const modal = document.getElementById('modal-view-file');
+            if (modal) modal.style.display = 'flex';
+        } else {
+            alert('Cannot preview: ' + data.error);
+        }
+    } catch (e) {
+        alert('Preview error: ' + e.message);
     }
 }
 
-// File Manager: Delete File/Folder
-async function deleteFileOrFolder(targetPath) {
-    if (!confirm(`Are you sure you want to delete ${targetPath}?`)) return;
-
-    const res = await fetch('/api/file/delete', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authToken}`
-        },
-        body: JSON.stringify({ targetPath })
-    });
-    const data = await res.json();
-    if (data.success) {
-        showNotification(`Deleted ${targetPath}`);
-        loadFiles(currentPath);
-    } else {
-        alert('Delete error: ' + data.error);
-    }
-}
-
-// File Manager: Unzip Archive
-async function unzipFile(zipPath) {
-    showNotification(`Extracting ZIP archive ${zipPath}...`);
-    const res = await fetch('/api/file/unzip', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${authToken}`
-        },
-        body: JSON.stringify({ zipPath, destDir: currentPath })
-    });
-    const data = await res.json();
-    if (data.success) {
-        showNotification('ZIP Archive extracted successfully!');
-        loadFiles(currentPath);
-    } else {
-        alert('Unzip error: ' + data.error);
-    }
-}
-
-// File Manager: Upload File Modal & Action
+// 13. Upload File Modal & Action
 function openUploadModal() {
     const modal = document.getElementById('modal-upload-file');
     if (modal) modal.style.display = 'flex';
@@ -568,10 +1010,7 @@ async function submitUploadFile() {
 
         const res = await fetch('/api/file/upload', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${authToken}`
-            },
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
             body: JSON.stringify({
                 targetDir: currentPath,
                 fileName: file.name,

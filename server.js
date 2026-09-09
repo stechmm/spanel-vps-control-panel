@@ -563,6 +563,133 @@ const server = http.createServer(async (req, res) => {
             }
         }
 
+        // 17.1 File Manager: Create Empty File
+        if (req.url === '/api/file/create' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const { targetDir, fileName } = body;
+            if (!fileName || !targetDir) {
+                return res.end(JSON.stringify({ success: false, error: 'Target directory and filename required' }));
+            }
+            const fullPath = path.join(targetDir, fileName);
+            if (fs.existsSync(fullPath)) {
+                return res.end(JSON.stringify({ success: false, error: 'File or folder already exists' }));
+            }
+            try {
+                fs.writeFileSync(fullPath, '', 'utf-8');
+                return res.end(JSON.stringify({ success: true, message: `File ${fileName} created!` }));
+            } catch (e) {
+                return res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+        }
+
+        // 17.2 File Manager: Rename File/Folder
+        if (req.url === '/api/file/rename' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const { oldPath, newName } = body;
+            if (!oldPath || !newName) {
+                return res.end(JSON.stringify({ success: false, error: 'Old path and new name required' }));
+            }
+            const newPath = path.join(path.dirname(oldPath), newName);
+            try {
+                fs.renameSync(oldPath, newPath);
+                return res.end(JSON.stringify({ success: true, message: `Renamed to ${newName}` }));
+            } catch (e) {
+                return res.end(JSON.stringify({ success: false, error: e.message }));
+            }
+        }
+
+        // 17.3 File Manager: Copy File/Folder
+        if (req.url === '/api/file/copy' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const { sourcePath, targetDir } = body;
+            if (!sourcePath || !targetDir) {
+                return res.end(JSON.stringify({ success: false, error: 'Source and target required' }));
+            }
+            const baseName = path.basename(sourcePath);
+            const destPath = path.join(targetDir, baseName);
+            const copyRes = await runCmd(`cp -r "${sourcePath}" "${destPath}"`);
+            return res.end(JSON.stringify({ success: !copyRes.error, error: copyRes.error, message: `Copied to ${destPath}` }));
+        }
+
+        // 17.4 File Manager: Move File/Folder
+        if (req.url === '/api/file/move' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const { sourcePath, targetDir } = body;
+            if (!sourcePath || !targetDir) {
+                return res.end(JSON.stringify({ success: false, error: 'Source and target required' }));
+            }
+            const moveRes = await runCmd(`mv "${sourcePath}" "${targetDir}"`);
+            return res.end(JSON.stringify({ success: !moveRes.error, error: moveRes.error, message: `Moved to ${targetDir}` }));
+        }
+
+        // 17.5 File Manager: Change Permissions (chmod)
+        if (req.url === '/api/file/chmod' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const { targetPath, mode } = body;
+            if (!targetPath || !mode) {
+                return res.end(JSON.stringify({ success: false, error: 'Target path and mode required' }));
+            }
+            const chmodRes = await runCmd(`chmod ${mode} "${targetPath}"`);
+            return res.end(JSON.stringify({ success: !chmodRes.error, error: chmodRes.error, message: `Permissions set to ${mode}` }));
+        }
+
+        // 17.6 File Manager: Compress to ZIP
+        if (req.url === '/api/file/compress' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const { items, zipName, targetDir } = body;
+            if (!items || !items.length || !zipName) {
+                return res.end(JSON.stringify({ success: false, error: 'Items and zip name required' }));
+            }
+            const dir = targetDir || '/var/www';
+            const itemArgs = items.map(i => `"${path.basename(i)}"`).join(' ');
+            const zipRes = await runCmd(`zip -r "${zipName}" ${itemArgs}`, dir);
+            return res.end(JSON.stringify({ success: !zipRes.error, output: zipRes.stdout || zipRes.stderr }));
+        }
+
+        // 17.7 File Manager: Directory Tree
+        if (req.url.startsWith('/api/file/tree') && req.method === 'GET') {
+            const urlParams = new URLSearchParams(req.url.split('?')[1] || '');
+            let targetPath = urlParams.get('path') || '/var/www';
+            try {
+                const entries = fs.readdirSync(targetPath, { withFileTypes: true });
+                const folders = entries.filter(e => e.isDirectory()).map(e => ({
+                    name: e.name,
+                    path: path.join(targetPath, e.name).replace(/\\/g, '/')
+                }));
+                return res.end(JSON.stringify({ success: true, path: targetPath, folders }));
+            } catch (e) {
+                return res.end(JSON.stringify({ success: false, folders: [] }));
+            }
+        }
+
+        // 17.8 File Manager: Direct Download
+        if (req.url.startsWith('/api/file/download') && req.method === 'GET') {
+            const urlParams = new URLSearchParams(req.url.split('?')[1] || '');
+            const filePath = urlParams.get('path') || '';
+            if (!filePath || !fs.existsSync(filePath)) {
+                res.writeHead(404, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: 'File not found' }));
+            }
+            try {
+                const stat = fs.statSync(filePath);
+                if (stat.isDirectory()) {
+                    res.writeHead(400, { 'Content-Type': 'application/json' });
+                    return res.end(JSON.stringify({ error: 'Cannot download folder directly, please compress first' }));
+                }
+                const fileName = path.basename(filePath);
+                res.writeHead(200, {
+                    'Content-Type': 'application/octet-stream',
+                    'Content-Disposition': `attachment; filename="${encodeURIComponent(fileName)}"`,
+                    'Content-Length': stat.size
+                });
+                const readStream = fs.createReadStream(filePath);
+                return readStream.pipe(res);
+            } catch (e) {
+                res.writeHead(500, { 'Content-Type': 'application/json' });
+                return res.end(JSON.stringify({ error: e.message }));
+            }
+        }
+
         // 18. Git Direct Auto-Deploy
         if (req.url === '/api/git/deploy' && req.method === 'POST') {
             const body = await getJsonBody(req);
