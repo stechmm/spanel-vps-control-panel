@@ -25,6 +25,7 @@ async function checkAuth() {
         const data = await res.json();
         if (data.authenticated) {
             hideLoginScreen();
+            if (typeof fetchLiveMetrics === 'function') fetchLiveMetrics();
             loadSites();
             loadNodeApps();
             loadDnsRecords();
@@ -35,6 +36,7 @@ async function checkAuth() {
         }
     } catch (e) {
         hideLoginScreen();
+        if (typeof fetchLiveMetrics === 'function') fetchLiveMetrics();
         loadSites();
         loadNodeApps();
         loadFiles(currentPath);
@@ -84,6 +86,7 @@ async function handleLogin(event) {
             authToken = data.token;
             localStorage.setItem('spanel_token', authToken);
             hideLoginScreen();
+            if (typeof fetchLiveMetrics === 'function') fetchLiveMetrics();
             loadSites();
             loadNodeApps();
             loadDnsRecords();

@@ -58,11 +58,11 @@
             <div class="server-status-card">
                 <div class="status-header">
                     <span class="status-indicator online"></span>
-                    <span class="server-name" id="current-server-name">stech-vps</span>
+                    <span class="server-name" id="current-server-name">Loading...</span>
                 </div>
                 <div class="server-meta">
-                    <span id="current-server-ip"><i class="fa-solid fa-network-wired"></i> 167.172.79.75</span>
-                    <span class="os-tag"><i class="fa-brands fa-ubuntu"></i> Ubuntu 24.04 LTS</span>
+                    <span id="current-server-ip"><i class="fa-solid fa-network-wired"></i> <span id="server-ip-val">--</span></span>
+                    <span class="os-tag"><i class="fa-brands fa-linux"></i> <span id="server-os-val">Linux</span></span>
                 </div>
             </div>
 
@@ -155,10 +155,10 @@
                     <div class="page-title-bar">
                         <div>
                             <h1>System Health & Resources</h1>
-                            <p class="subtitle">Optimized for Enterprise DigitalOcean VPS</p>
+                            <p class="subtitle" id="dashboard-host-subtitle">Live Server Performance Monitor</p>
                         </div>
                         <div class="quick-info-pill">
-                            <i class="fa-solid fa-clock"></i> Uptime: <span id="server-uptime">14 Days, 14 Hours</span>
+                            <i class="fa-solid fa-clock"></i> Uptime: <span id="server-uptime">--</span>
                         </div>
                     </div>
 
@@ -170,11 +170,11 @@
                             </div>
                             <div class="stat-info">
                                 <span class="stat-label">CPU Load</span>
-                                <h2 class="stat-value" id="cpu-usage-val">0.23</h2>
+                                <h2 class="stat-value" id="cpu-usage-val">--%</h2>
                                 <div class="progress-bar-wrap">
-                                    <div class="progress-bar cpu-bar" id="cpu-bar" style="width: 23%;"></div>
+                                    <div class="progress-bar cpu-bar" id="cpu-bar" style="width: 0%;"></div>
                                 </div>
-                                <span class="stat-sub">1 vCPU Intel SGP1</span>
+                                <span class="stat-sub" id="cpu-model-sub">Loading CPU...</span>
                             </div>
                         </div>
 
@@ -184,11 +184,11 @@
                             </div>
                             <div class="stat-info">
                                 <span class="stat-label">RAM Memory & SWAP</span>
-                                <h2 class="stat-value" id="ram-usage-val">687 MB / 1.9 GB</h2>
+                                <h2 class="stat-value" id="ram-usage-val">-- MB / -- MB</h2>
                                 <div class="progress-bar-wrap">
-                                    <div class="progress-bar ram-bar" id="ram-bar" style="width: 35%;"></div>
+                                    <div class="progress-bar ram-bar" id="ram-bar" style="width: 0%;"></div>
                                 </div>
-                                <span class="stat-sub" id="swap-stat-sub"><i class="fa-solid fa-shield-halved text-success"></i> 2.0 GB SWAP Enabled</span>
+                                <span class="stat-sub" id="swap-stat-sub">SWAP: Checking...</span>
                             </div>
                         </div>
 
@@ -197,12 +197,12 @@
                                 <i class="fa-solid fa-hard-drive"></i>
                             </div>
                             <div class="stat-info">
-                                <span class="stat-label">SSD Storage</span>
-                                <h2 class="stat-value" id="disk-usage-val">4.2 GB / 33 GB</h2>
+                                <span class="stat-label">Storage (Root /)</span>
+                                <h2 class="stat-value" id="disk-usage-val">-- / --</h2>
                                 <div class="progress-bar-wrap">
-                                    <div class="progress-bar disk-bar" id="disk-bar" style="width: 13%;"></div>
+                                    <div class="progress-bar disk-bar" id="disk-bar" style="width: 0%;"></div>
                                 </div>
-                                <span class="stat-sub">29 GB Storage Available</span>
+                                <span class="stat-sub" id="disk-avail-sub">Available: --</span>
                             </div>
                         </div>
                     </div>

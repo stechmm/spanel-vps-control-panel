@@ -111,20 +111,53 @@ const server = http.createServer(async (req, res) => {
         if (req.url === '/api/stats' && req.method === 'GET') {
             const totalMem = os.totalmem();
             const freeMem = os.freemem();
+            const usedMem = totalMem - freeMem;
+            const ramUsagePct = Math.round((usedMem / totalMem) * 100);
             const cpuLoad = os.loadavg();
+            const cpus = os.cpus() || [];
+            const cpuModel = cpus.length > 0 ? cpus[0].model.trim() : 'Generic CPU';
+            const cpuCores = cpus.length;
 
             const dfResult = await runCmd("df -h / | tail -n 1");
             const uptimeResult = await runCmd("uptime -p");
-            const swapResult = await runCmd("free -h | grep Swap");
+            const swapResult = await runCmd("free -h | grep -i Swap");
+            const osResult = await runCmd("grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '\"'");
+            const ipResult = await runCmd("hostname -I | awk '{print $1}'");
+
+            // Parse df output: e.g. "/dev/vda1        58G  9.2G   48G  16% /"
+            const dfParts = (dfResult.stdout || '').trim().split(/\s+/);
+            const diskTotal = dfParts[1] || '--';
+            const diskUsed = dfParts[2] || '--';
+            const diskAvail = dfParts[3] || '--';
+            const diskPctStr = dfParts[4] || '0%';
+            const diskPct = parseInt(diskPctStr.replace('%', '')) || 0;
+
+            // Parse swap
+            const swapParts = (swapResult.stdout || '').trim().split(/\s+/);
+            const swapTotal = swapParts[1] || '0B';
+            const swapUsed = swapParts[2] || '0B';
 
             return res.end(JSON.stringify({
-                cpuLoad: cpuLoad[0].toFixed(2),
+                hostname: os.hostname(),
+                serverIp: ipResult.stdout.trim() || '127.0.0.1',
+                osDistro: osResult.stdout.trim() || 'Ubuntu Linux',
+                cpuModel: cpuModel,
+                cpuCores: cpuCores,
+                cpuLoadVal: cpuLoad[0].toFixed(2),
+                cpuUsagePct: Math.min(100, Math.round((cpuLoad[0] / Math.max(1, cpuCores)) * 100)),
                 totalRamMB: Math.round(totalMem / (1024 * 1024)),
                 freeRamMB: Math.round(freeMem / (1024 * 1024)),
-                usedRamMB: Math.round((totalMem - freeMem) / (1024 * 1024)),
-                diskInfo: dfResult.stdout.trim(),
-                uptime: uptimeResult.stdout.trim().replace('up ', ''),
-                swapInfo: swapResult.stdout.trim()
+                usedRamMB: Math.round(usedMem / (1024 * 1024)),
+                ramUsagePct: ramUsagePct,
+                totalRamGB: (totalMem / (1024 * 1024 * 1024)).toFixed(1),
+                usedRamGB: (usedMem / (1024 * 1024 * 1024)).toFixed(1),
+                diskTotal: diskTotal,
+                diskUsed: diskUsed,
+                diskAvail: diskAvail,
+                diskPct: diskPct,
+                swapTotal: swapTotal,
+                swapUsed: swapUsed,
+                uptime: uptimeResult.stdout.trim().replace(/^up\s+/, '') || 'Just started'
             }));
         }
 
