@@ -116,6 +116,11 @@ function initNavigation() {
             item.classList.add('active');
             const targetEl = document.getElementById(`tab-${targetTab}`);
             if (targetEl) targetEl.classList.add('active');
+
+            // Auto-load tab data on switch
+            if (targetTab === 'security') loadSecurityStatus();
+            if (targetTab === 'docker')    loadContainers();
+            if (targetTab === 'processes') loadProcesses();
         });
     });
 }
@@ -774,4 +779,155 @@ function showNotification(msg) {
     toast.innerHTML = `<i class="fa-solid fa-circle-check text-success"></i> ${msg}`;
     document.body.appendChild(toast);
     setTimeout(() => toast.remove(), 4000);
+}
+
+// ============================================================
+// Docker Container Manager
+// ============================================================
+async function loadContainers() {
+    const tbody = document.getElementById('docker-container-list');
+    const badge = document.getElementById('docker-count-badge');
+    if (!tbody) return;
+
+    tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Fetching containers...</td></tr>`;
+
+    try {
+        const res = await fetch('/api/containers', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+
+        if (!data.success) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">${data.message || 'Error loading containers'}</td></tr>`;
+            return;
+        }
+
+        if (badge) badge.innerText = `${data.containers.length} containers`;
+
+        if (!data.containers.length) {
+            tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">${data.message || 'No Docker containers found on this server.'}</td></tr>`;
+            return;
+        }
+
+        tbody.innerHTML = data.containers.map(c => `
+            <tr>
+                <td><code style="font-size:11px;">${c.id}</code></td>
+                <td><strong>${c.name}</strong></td>
+                <td style="font-size:12px;color:var(--text-muted);">${c.image}</td>
+                <td>
+                    <span class="badge ${c.running ? 'badge-success' : 'badge-danger'}">
+                        <i class="fa-solid fa-circle" style="font-size:8px;"></i>
+                        ${c.status}
+                    </span>
+                </td>
+                <td>${c.cpu}</td>
+                <td>${c.mem}</td>
+                <td style="font-size:11px;color:var(--text-muted);">${c.ports || '--'}</td>
+                <td onclick="event.stopPropagation()">
+                    <button class="btn-icon-sm text-success" onclick="containerAction('${c.name}','start')" title="Start"><i class="fa-solid fa-play"></i></button>
+                    <button class="btn-icon-sm text-warning" onclick="containerAction('${c.name}','restart')" title="Restart"><i class="fa-solid fa-arrows-rotate"></i></button>
+                    <button class="btn-icon-sm text-danger" onclick="containerAction('${c.name}','stop')" title="Stop"><i class="fa-solid fa-stop"></i></button>
+                </td>
+            </tr>
+        `).join('');
+    } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#ef4444;">Error: ${e.message}</td></tr>`;
+    }
+}
+
+async function containerAction(containerName, action) {
+    showNotification(`Docker: ${action} → ${containerName}...`);
+    try {
+        const res = await fetch('/api/container/action', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${authToken}`
+            },
+            body: JSON.stringify({ containerName, action })
+        });
+        const data = await res.json();
+        if (data.success) {
+            showNotification(`✅ Container ${containerName} ${action} successful!`);
+            setTimeout(loadContainers, 1500);
+        } else {
+            alert('Container action failed: ' + (data.output || data.error));
+        }
+    } catch (e) {
+        alert('Error: ' + e.message);
+    }
+}
+
+// ============================================================
+// Background Process Monitor (PM2 + Python AI Agents)
+// ============================================================
+async function loadProcesses() {
+    const pm2Tbody  = document.getElementById('pm2-process-list');
+    const pyTbody   = document.getElementById('python-process-list');
+    const pm2Badge  = document.getElementById('pm2-process-count');
+    const pyBadge   = document.getElementById('python-process-count');
+
+    if (pm2Tbody) pm2Tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</td></tr>`;
+    if (pyTbody)  pyTbody.innerHTML  = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i> Scanning...</td></tr>`;
+
+    try {
+        const res = await fetch('/api/processes', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+
+        // --- PM2 Apps ---
+        if (pm2Badge) pm2Badge.innerText = `${data.pm2.length} apps`;
+        if (pm2Tbody) {
+            if (!data.pm2.length) {
+                pm2Tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--text-muted);">No PM2 apps running.</td></tr>`;
+            } else {
+                pm2Tbody.innerHTML = data.pm2.map(p => {
+                    const statusClass = p.status === 'online' ? 'badge-success' : p.status === 'stopped' ? 'badge-secondary' : 'badge-danger';
+                    return `
+                    <tr>
+                        <td><strong>#${p.id}</strong></td>
+                        <td>
+                            <i class="fa-brands fa-node-js text-success"></i>
+                            <strong style="margin-left:6px;">${p.name}</strong>
+                            <div style="font-size:11px;color:var(--text-muted);margin-top:2px;">${p.exec.split('/').pop()}</div>
+                        </td>
+                        <td><span class="badge ${statusClass}">${p.status}</span></td>
+                        <td>${p.cpu}</td>
+                        <td>${p.ram}</td>
+                        <td style="font-size:12px;">${p.pid}</td>
+                        <td><span class="badge ${p.restarts > 5 ? 'badge-danger' : 'badge-secondary'}">${p.restarts}</span></td>
+                        <td onclick="event.stopPropagation()">
+                            <button class="btn-icon-sm text-success" onclick="pm2Action(${p.id},'restart')" title="Restart"><i class="fa-solid fa-arrows-rotate"></i></button>
+                            <button class="btn-icon-sm text-danger" onclick="pm2Action(${p.id},'stop')" title="Stop"><i class="fa-solid fa-stop"></i></button>
+                        </td>
+                    </tr>`;
+                }).join('');
+            }
+        }
+
+        // --- Python AI Agents ---
+        if (pyBadge) pyBadge.innerText = `${data.python.length} agents`;
+        if (pyTbody) {
+            if (!data.python.length) {
+                pyTbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--text-muted);">No Python AI agents running.</td></tr>`;
+            } else {
+                pyTbody.innerHTML = data.python.map(p => `
+                    <tr>
+                        <td><code>${p.pid}</code></td>
+                        <td style="font-size:12px; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                            <i class="fa-brands fa-python text-warning"></i>
+                            ${p.name}
+                        </td>
+                        <td>${p.cpu}</td>
+                        <td>${p.ram}</td>
+                        <td>${p.uptime}</td>
+                        <td><span class="badge badge-success">running</span></td>
+                    </tr>
+                `).join('');
+            }
+        }
+    } catch (e) {
+        if (pm2Tbody) pm2Tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#ef4444;">Error: ${e.message}</td></tr>`;
+    }
 }

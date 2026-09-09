@@ -364,12 +364,26 @@ const server = http.createServer(async (req, res) => {
 
             fs.writeFileSync(nginxConfPath, nginxConfig);
             await runCmd(`ln -sf ${nginxConfPath} ${nginxLinkPath}`);
-            const testResult = await runCmd("nginx -t && systemctl reload nginx");
 
+            // Safe-Check: nginx -t first — only reload if syntax OK
+            const syntaxCheck = await runCmd('nginx -t');
+            const syntaxOk = !syntaxCheck.error && (syntaxCheck.stderr.includes('ok') || syntaxCheck.stderr.includes('successful'));
+
+            if (!syntaxOk) {
+                // Rollback: remove bad config to prevent nginx breakage
+                await runCmd(`rm -f ${nginxLinkPath}`);
+                return res.end(JSON.stringify({
+                    success: false,
+                    error: 'Nginx config syntax error — site NOT created to protect server.',
+                    nginxOutput: syntaxCheck.stderr || syntaxCheck.stdout
+                }));
+            }
+
+            const reloadRes = await runCmd('systemctl reload nginx');
             return res.end(JSON.stringify({
                 success: true,
-                message: `Website ${domain} created successfully!`,
-                nginxOutput: testResult.stdout || testResult.stderr
+                message: `Website ${domain} created successfully! Nginx config verified & reloaded.`,
+                nginxOutput: syntaxCheck.stderr || reloadRes.stdout
             }));
         }
 
@@ -601,6 +615,109 @@ const server = http.createServer(async (req, res) => {
 
             const result = await runCmd(cmd, currentDir);
             return res.end(JSON.stringify({ output: result.stdout || result.stderr || '', cwd: currentDir }));
+        }
+
+        // 22. Docker Container List
+        if (req.url === '/api/containers' && req.method === 'GET') {
+            const dockerInstalled = await runCmd('which docker');
+            if (dockerInstalled.error || !dockerInstalled.stdout.trim()) {
+                return res.end(JSON.stringify({ success: true, containers: [], message: 'Docker not installed on this server.' }));
+            }
+
+            const allRes  = await runCmd("docker ps -a --format '{{.ID}}|{{.Names}}|{{.Image}}|{{.Status}}|{{.Ports}}'");
+            const statsRes = await runCmd("docker stats --no-stream --format '{{.Name}}|{{.CPUPerc}}|{{.MemUsage}}'");
+
+            const statsMap = {};
+            (statsRes.stdout || '').split('\n').filter(Boolean).forEach(line => {
+                const [name, cpu, mem] = line.split('|');
+                if (name) statsMap[name.trim()] = { cpu: cpu || '0%', mem: mem || '0MiB' };
+            });
+
+            const containers = (allRes.stdout || '').split('\n').filter(Boolean).map(line => {
+                const [id, name, image, status, ports] = line.split('|');
+                const stats = statsMap[name] || { cpu: '--', mem: '--' };
+                return {
+                    id: (id || '').trim().substring(0, 12),
+                    name: (name || '').trim(),
+                    image: (image || '').trim(),
+                    status: (status || '').trim(),
+                    ports: (ports || '').trim(),
+                    cpu: stats.cpu,
+                    mem: stats.mem,
+                    running: (status || '').toLowerCase().startsWith('up')
+                };
+            });
+
+            return res.end(JSON.stringify({ success: true, containers }));
+        }
+
+        // 23. Docker Container Restart / Stop / Start
+        if (req.url === '/api/container/action' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const { containerName, action } = body;
+
+            if (!containerName || !action) {
+                return res.end(JSON.stringify({ success: false, error: 'containerName and action required' }));
+            }
+
+            const allowedActions = ['restart', 'stop', 'start', 'kill'];
+            if (!allowedActions.includes(action)) {
+                return res.end(JSON.stringify({ success: false, error: 'Invalid action. Use: restart, stop, start, kill' }));
+            }
+
+            const result = await runCmd(`docker ${action} ${containerName}`);
+            return res.end(JSON.stringify({
+                success: !result.error,
+                message: `Container ${containerName} ${action} executed.`,
+                output: result.stdout || result.stderr
+            }));
+        }
+
+        // 24. PM2 + Python AI Agent Background Process Monitor
+        if (req.url === '/api/processes' && req.method === 'GET') {
+            // PM2 processes (Node.js apps)
+            const pm2Res = await runCmd('pm2 jlist');
+            let pm2List = [];
+            try {
+                const raw = JSON.parse(pm2Res.stdout || '[]');
+                pm2List = raw.map(p => ({
+                    type: 'pm2',
+                    id: p.pm_id,
+                    name: p.name,
+                    status: p.pm2_env ? p.pm2_env.status : 'unknown',
+                    cpu: (p.monit ? p.monit.cpu : 0) + '%',
+                    ram: p.monit ? Math.round(p.monit.memory / (1024 * 1024)) + ' MB' : '-- MB',
+                    uptime: p.pm2_env && p.pm2_env.pm_uptime ? new Date(p.pm2_env.pm_uptime).toLocaleString() : '--',
+                    pid: p.pid || '--',
+                    restarts: p.pm2_env ? (p.pm2_env.restart_time || 0) : 0,
+                    exec: p.pm2_env ? (p.pm2_env.pm_exec_path || '') : ''
+                }));
+            } catch (e) {}
+
+            // Python AI Agent processes
+            const pyRes = await runCmd("ps aux --no-header | grep python | grep -v grep");
+            const pythonProcs = (pyRes.stdout || '').split('\n').filter(Boolean).map(line => {
+                const parts = line.trim().split(/\s+/);
+                return {
+                    type: 'python',
+                    id: '--',
+                    name: (parts.slice(10).join(' ') || 'python').substring(0, 60),
+                    pid: parts[1] || '--',
+                    cpu: (parts[2] || '0') + '%',
+                    ram: (parts[3] || '0') + '%',
+                    status: 'running',
+                    uptime: parts[9] || '--',
+                    restarts: '--',
+                    exec: parts.slice(10).join(' ') || ''
+                };
+            });
+
+            return res.end(JSON.stringify({
+                success: true,
+                pm2: pm2List,
+                python: pythonProcs,
+                total: pm2List.length + pythonProcs.length
+            }));
         }
 
         return res.end(JSON.stringify({ error: 'Endpoint not found' }));

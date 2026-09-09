@@ -102,6 +102,14 @@
                     <i class="fa-solid fa-shield-halved"></i>
                     <span>SSL & Sentinel Security</span>
                 </a>
+                <a href="#docker" class="nav-item" data-tab="docker">
+                    <i class="fa-brands fa-docker text-primary"></i>
+                    <span>Docker Containers</span>
+                </a>
+                <a href="#processes" class="nav-item" data-tab="processes">
+                    <i class="fa-solid fa-microchip text-success"></i>
+                    <span>Process Monitor</span>
+                </a>
                 <a href="#terminal" class="nav-item" data-tab="terminal">
                     <i class="fa-solid fa-terminal"></i>
                     <span>SSH Web Console</span>
@@ -573,6 +581,109 @@
                                 </tbody>
                             </table>
                         </div>
+                    </div>
+                </section>
+                <!-- TAB 10: DOCKER CONTAINER MANAGER -->
+                <section id="tab-docker" class="tab-content">
+                    <div class="page-title-bar">
+                        <div>
+                            <h1><i class="fa-brands fa-docker text-primary"></i> Docker Container Manager</h1>
+                            <p class="subtitle">Live status, restart, stop &amp; start Docker containers</p>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" onclick="loadContainers()">
+                            <i class="fa-solid fa-arrows-rotate"></i> Refresh
+                        </button>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-solid fa-server"></i> Running Containers</h3>
+                            <span class="badge badge-primary" id="docker-count-badge">-- containers</span>
+                        </div>
+                        <table class="custom-table">
+                            <thead>
+                                <tr>
+                                    <th>Container ID</th>
+                                    <th>Name</th>
+                                    <th>Image</th>
+                                    <th>Status</th>
+                                    <th>CPU</th>
+                                    <th>Memory</th>
+                                    <th>Ports</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="docker-container-list">
+                                <tr><td colspan="8" style="text-align:center; color:var(--text-muted);">
+                                    <i class="fa-solid fa-spinner fa-spin"></i> Loading containers...
+                                </td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- TAB 11: PROCESS MONITOR -->
+                <section id="tab-processes" class="tab-content">
+                    <div class="page-title-bar">
+                        <div>
+                            <h1><i class="fa-solid fa-microchip text-success"></i> Background Process Monitor</h1>
+                            <p class="subtitle">PM2 Node.js apps &amp; Python AI Agent process status</p>
+                        </div>
+                        <button class="btn btn-secondary btn-sm" onclick="loadProcesses()">
+                            <i class="fa-solid fa-arrows-rotate"></i> Refresh
+                        </button>
+                    </div>
+
+                    <!-- PM2 Processes -->
+                    <div class="card" style="margin-bottom: 20px;">
+                        <div class="card-header">
+                            <h3><i class="fa-brands fa-node-js text-success"></i> PM2 Node.js / App Processes</h3>
+                            <span class="badge badge-success" id="pm2-process-count">0 apps</span>
+                        </div>
+                        <table class="custom-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>App Name</th>
+                                    <th>Status</th>
+                                    <th>CPU</th>
+                                    <th>RAM</th>
+                                    <th>PID</th>
+                                    <th>Restarts</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pm2-process-list">
+                                <tr><td colspan="8" style="text-align:center; color:var(--text-muted);">
+                                    <i class="fa-solid fa-spinner fa-spin"></i> Loading PM2 apps...
+                                </td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Python AI Agent Processes -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3><i class="fa-brands fa-python text-warning"></i> Python AI Agent Processes</h3>
+                            <span class="badge badge-warning" id="python-process-count">0 agents</span>
+                        </div>
+                        <table class="custom-table">
+                            <thead>
+                                <tr>
+                                    <th>PID</th>
+                                    <th>Process / Script</th>
+                                    <th>CPU %</th>
+                                    <th>RAM %</th>
+                                    <th>Uptime</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="python-process-list">
+                                <tr><td colspan="6" style="text-align:center; color:var(--text-muted);">
+                                    <i class="fa-solid fa-spinner fa-spin"></i> Scanning Python agents...
+                                </td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </section>
 
