@@ -122,7 +122,7 @@ const server = http.createServer(async (req, res) => {
             const uptimeResult = await runCmd("uptime -p");
             const swapResult = await runCmd("free -h | grep -i Swap");
             const osResult = await runCmd("grep PRETTY_NAME /etc/os-release | cut -d= -f2 | tr -d '\"'");
-            const ipResult = await runCmd("hostname -I | awk '{print $1}'");
+            const ipResult = await runCmd("curl -s -4 --connect-timeout 2 ifconfig.me || hostname -I | awk '{print $1}'");
 
             // Parse df output: e.g. "/dev/vda1        58G  9.2G   48G  16% /"
             const dfParts = (dfResult.stdout || '').trim().split(/\s+/);
