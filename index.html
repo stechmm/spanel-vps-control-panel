@@ -854,14 +854,32 @@
                 </div>
 
                 <!-- Node.js / Proxy Port & Start Script Options -->
-                <div id="proxy-settings-group" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); padding: 12px; border-radius: 8px; display: flex; gap: 12px;">
-                    <div style="flex: 1;">
-                        <label style="font-size:12px; margin-bottom:4px; display:block;">Backend Port</label>
-                        <input type="number" id="app-port-input" class="form-control" value="3000" placeholder="3000">
-                    </div>
-                    <div style="flex: 1;" id="node-script-wrapper">
-                        <label style="font-size:12px; margin-bottom:4px; display:block;">Start File</label>
-                        <input type="text" id="app-script-input" class="form-control" value="index.js" placeholder="server.js or index.js">
+                <div id="proxy-settings-group" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); padding: 14px; border-radius: 8px; margin-bottom: 14px;">
+                    <div style="display: flex; gap: 12px;">
+                        <div style="flex: 1;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <label style="font-size:12px; margin:0;"><i class="fa-solid fa-network-wired text-primary"></i> Backend Port</label>
+                                <span class="badge" id="badge-auto-port" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 10px; padding: 2px 6px; border-radius: 4px; cursor: pointer;" onclick="fetchNextFreePort()" title="Click to auto-refresh next free port">
+                                    <i class="fa-solid fa-wand-magic-sparkles"></i> Auto Free Port
+                                </span>
+                            </div>
+                            <input type="text" id="app-port-input" class="form-control" placeholder="Auto (မဖြည့်လျှင် auto ရွေးပေးမည်)">
+                            <small style="color:var(--text-muted); font-size:11px; display:block; margin-top:4px;">
+                                VPS ပေါ်ရှိ လွတ်နေသော Port (ဥပမာ 3001, 3002...) ကို auto သတ်မှတ်ပေးပါမည်။
+                            </small>
+                        </div>
+                        <div style="flex: 1;" id="node-script-wrapper">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                                <label style="font-size:12px; margin:0;"><i class="fa-brands fa-node-js text-success"></i> Start File</label>
+                                <span class="badge" style="background: rgba(99, 102, 241, 0.2); color: #818cf8; font-size: 10px; padding: 2px 6px; border-radius: 4px;">
+                                    <i class="fa-solid fa-bolt"></i> Auto-Detect
+                                </span>
+                            </div>
+                            <input type="text" id="app-script-input" class="form-control" placeholder="Auto (package.json / server.js)">
+                            <small style="color:var(--text-muted); font-size:11px; display:block; margin-top:4px;">
+                                package.json ထဲက main သို့ server.js / app.js ကို auto ရှာပေးပါမည်။
+                            </small>
+                        </div>
                     </div>
                 </div>
 

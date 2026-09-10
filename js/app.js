@@ -349,12 +349,16 @@ function openAddSiteModal() {
 
     // Reset fields
     const domainInput = document.getElementById('app-domain-input');
+    const portInput = document.getElementById('app-port-input');
+    const scriptInput = document.getElementById('app-script-input');
     const gitUrl = document.getElementById('app-git-url');
     const zipInput = document.getElementById('app-zip-file');
     const statusBox = document.getElementById('app-deploy-status');
     const btnSubmit = document.getElementById('btn-submit-app-deploy');
 
     if (domainInput) domainInput.value = '';
+    if (portInput) portInput.value = '';
+    if (scriptInput) scriptInput.value = '';
     if (gitUrl) gitUrl.value = '';
     if (zipInput) zipInput.value = '';
     if (statusBox) statusBox.style.display = 'none';
@@ -367,7 +371,31 @@ function openAddSiteModal() {
     toggleSourceInputs();
 
     modal.style.display = 'flex';
+    fetchNextFreePort();
     setTimeout(() => domainInput && domainInput.focus(), 100);
+}
+
+async function fetchNextFreePort() {
+    const portInput = document.getElementById('app-port-input');
+    const badge = document.getElementById('badge-auto-port');
+    try {
+        if (badge) badge.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Checking...`;
+        const res = await fetch('/api/next-free-port', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        if (data.success && data.port) {
+            if (portInput) {
+                portInput.placeholder = `Auto (Next free: ${data.port})`;
+            }
+            if (badge) {
+                badge.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> Free Port: ${data.port}`;
+            }
+            return data.port;
+        }
+    } catch (e) {}
+    if (badge) badge.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> Auto Free Port`;
+    return null;
 }
 
 function togglePlatformOptions() {
@@ -379,7 +407,7 @@ function togglePlatformOptions() {
         if (platform === 'static') {
             proxyGroup.style.display = 'none';
         } else {
-            proxyGroup.style.display = 'flex';
+            proxyGroup.style.display = 'block';
             if (scriptWrapper) {
                 scriptWrapper.style.display = platform === 'nodejs' ? 'block' : 'none';
             }
@@ -403,8 +431,10 @@ async function submitInstallApp() {
     const domain = (domainInput?.value || '').trim().toLowerCase();
     const appType = document.getElementById('app-platform-select')?.value || 'static';
     const sourceType = document.querySelector('input[name="app_source"]:checked')?.value || 'blank';
-    const port = document.getElementById('app-port-input')?.value || 3000;
-    const startScript = document.getElementById('app-script-input')?.value || 'index.js';
+    const rawPort = (document.getElementById('app-port-input')?.value || '').trim();
+    const port = rawPort && !isNaN(parseInt(rawPort, 10)) ? parseInt(rawPort, 10) : 'auto';
+    const rawScript = (document.getElementById('app-script-input')?.value || '').trim();
+    const startScript = rawScript && rawScript.toLowerCase() !== 'auto' ? rawScript : 'auto';
     const repoUrl = (document.getElementById('app-git-url')?.value || '').trim();
     const branch = (document.getElementById('app-git-branch')?.value || 'main').trim();
     const zipInput = document.getElementById('app-zip-file');
@@ -464,18 +494,20 @@ async function submitInstallApp() {
             const data = await res.json();
 
             if (data.success) {
+                const portInfo = data.allocatedPort ? ` (Port: <strong>${data.allocatedPort}</strong>)` : '';
+                const scriptInfo = data.detectedStartScript ? ` [Entry File: <code>${data.detectedStartScript}</code>]` : '';
                 if (statusBox) {
                     statusBox.style.background = 'rgba(16, 185, 129, 0.15)';
                     statusBox.style.color = '#34d399';
                     statusBox.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-                    statusBox.innerHTML = `✅ <strong>${domain}</strong> is successfully deployed and connected!`;
+                    statusBox.innerHTML = `✅ <strong>${domain}</strong> is successfully deployed and connected!${portInfo}${scriptInfo}`;
                 }
-                showNotification(`✅ App / Domain ${domain} installed successfully!`);
+                showNotification(`✅ App ${domain} installed successfully!${portInfo ? ` on port ${data.allocatedPort}` : ''}`);
                 setTimeout(() => {
                     closeModal('modal-add-site');
                     loadSites();
                     loadNodeApps();
-                }, 1200);
+                }, 1500);
             } else {
                 if (statusBox) {
                     statusBox.style.background = 'rgba(239, 68, 68, 0.15)';

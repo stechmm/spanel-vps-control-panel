@@ -1,4 +1,5 @@
 const http = require('http');
+const net = require('net');
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -68,6 +69,74 @@ function isTrustedDevice(token) {
         return false;
     }
     return true;
+}
+
+// Smart Port Allocation & Start File Detection
+function isPortFree(port) {
+    return new Promise((resolve) => {
+        const srv = net.createServer();
+        srv.once('error', () => resolve(false));
+        srv.once('listening', () => {
+            srv.close(() => resolve(true));
+        });
+        srv.listen(port, '0.0.0.0');
+    });
+}
+
+async function getNextFreePort(start = 3001) {
+    for (let p = start; p < start + 1000; p++) {
+        if (await isPortFree(p)) return p;
+    }
+    return start;
+}
+
+function detectStartFile(projectDir, userSpecifiedFile) {
+    const trimmed = (userSpecifiedFile || '').trim();
+    if (trimmed && trimmed.toLowerCase() !== 'auto' && fs.existsSync(path.join(projectDir, trimmed))) {
+        return trimmed;
+    }
+
+    // 1. Inspect package.json
+    const pkgPath = path.join(projectDir, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+        try {
+            const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
+            if (pkg.main && fs.existsSync(path.join(projectDir, pkg.main))) {
+                return pkg.main;
+            }
+            if (pkg.scripts && pkg.scripts.start) {
+                const match = pkg.scripts.start.match(/(?:node|ts-node|nodemon)\s+([^\s;&|]+)/);
+                if (match && match[1]) {
+                    const cleanPath = match[1].replace(/^\.\//, '');
+                    if (fs.existsSync(path.join(projectDir, cleanPath))) {
+                        return cleanPath;
+                    }
+                }
+            }
+        } catch (e) {}
+    }
+
+    // 2. Common node entry points in order of popularity
+    const candidates = [
+        'server.js',
+        'app.js',
+        'index.js',
+        'main.js',
+        'src/server.js',
+        'src/app.js',
+        'src/index.js',
+        'dist/index.js',
+        'dist/server.js',
+        'bin/www'
+    ];
+
+    for (const cand of candidates) {
+        if (fs.existsSync(path.join(projectDir, cand))) {
+            return cand;
+        }
+    }
+
+    return trimmed && trimmed.toLowerCase() !== 'auto' ? trimmed : 'server.js';
 }
 
 // In-Memory Pending OTP Store (5 Minutes Expiry)
@@ -483,16 +552,21 @@ const server = http.createServer(async (req, res) => {
             }));
         }
 
+        // 8.5 Get Next Available Free Port on VPS
+        if (req.url === '/api/next-free-port' && req.method === 'GET') {
+            const nextPort = await getNextFreePort(3001);
+            return res.end(JSON.stringify({ success: true, port: nextPort }));
+        }
+
         // 9. All-in-One Create App / Web / Domain + Git / ZIP Deployer
         if (req.url === '/api/create-site' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const domain = (body.domain || '').trim().toLowerCase();
             const appType = body.appType || body.type || 'static'; // 'static' | 'proxy' | 'nodejs' | 'python'
             const sourceType = body.sourceType || 'blank'; // 'git' | 'zip' | 'blank'
-            const port = parseInt(body.port, 10) || 3000;
             const repoUrl = (body.repoUrl || '').trim();
             const branch = (body.branch || 'main').trim();
-            const startScript = (body.startScript || 'index.js').trim();
+            const startScript = (body.startScript || '').trim();
 
             if (!domain) {
                 return res.end(JSON.stringify({ success: false, error: 'Domain or subdomain name is required' }));
@@ -506,10 +580,18 @@ const server = http.createServer(async (req, res) => {
 
             let deployLog = [];
 
+            // Auto-Allocate Free Port if not specified or 'auto'
+            let port = parseInt(body.port, 10);
+            if (!port || isNaN(port) || port <= 0) {
+                port = await getNextFreePort(3001);
+                deployLog.push(`⚡ Auto-allocated free backend port: ${port}`);
+            } else {
+                deployLog.push(`Using specified backend port: ${port}`);
+            }
+
             // 1. Handle Source (Git / ZIP / Blank)
             if (sourceType === 'git' && repoUrl) {
                 deployLog.push(`Cloning Git repo ${repoUrl} (branch: ${branch})...`);
-                // If directory is not empty, clone into it or pull
                 const gitRes = await runCmd(`git clone -b ${branch} "${repoUrl}" "${siteDir}" || (cd "${siteDir}" && git pull origin ${branch})`);
                 deployLog.push(gitRes.stdout || gitRes.stderr || 'Git clone complete');
             } else if (sourceType === 'zip' && body.zipBase64) {
@@ -531,14 +613,17 @@ const server = http.createServer(async (req, res) => {
             }
 
             // 2. Handle Node.js / Python PM2 background process
+            let runTarget = startScript;
             const isProxy = (appType === 'proxy' || appType === 'nodejs' || appType === 'python');
             if (appType === 'nodejs') {
                 if (fs.existsSync(path.join(siteDir, 'package.json'))) {
                     deployLog.push('Installing npm dependencies...');
                     await runCmd(`cd "${siteDir}" && npm install --production`);
                 }
-                const runTarget = fs.existsSync(path.join(siteDir, startScript)) ? startScript : (fs.existsSync(path.join(siteDir, 'server.js')) ? 'server.js' : 'index.js');
-                deployLog.push(`Starting PM2 app: ${domain}...`);
+                runTarget = detectStartFile(siteDir, startScript);
+                deployLog.push(`⚡ Detected start entry point: ${runTarget}`);
+
+                deployLog.push(`Starting PM2 app: ${domain} on port ${port}...`);
                 await runCmd(`cd "${siteDir}" && PORT=${port} pm2 start "${runTarget}" --name "${domain}" --update-env || pm2 restart "${domain}"`);
                 await runCmd('pm2 save');
             }
@@ -599,7 +684,8 @@ const server = http.createServer(async (req, res) => {
                 message: `App / Domain ${domain} installed and deployed successfully!`,
                 domain: domain,
                 appType: appType,
-                port: isProxy ? port : 80,
+                allocatedPort: isProxy ? port : 80,
+                detectedStartScript: runTarget,
                 log: deployLog.join('\n')
             }));
         }
