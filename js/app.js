@@ -8,6 +8,7 @@ let selectedItems = new Set();
 let pathHistory = ['/var/www'];
 let historyIndex = 0;
 let authToken = localStorage.getItem('spanel_token') || '';
+let tempOtpToken = '';
 
 document.addEventListener('DOMContentLoaded', () => {
     checkAuth();
@@ -28,21 +29,12 @@ async function checkAuth() {
         const data = await res.json();
         if (data.authenticated) {
             hideLoginScreen();
-            try { if (typeof fetchLiveMetrics === 'function') fetchLiveMetrics(); } catch (e) {}
-            try { loadSites(); } catch (e) {}
-            try { loadNodeApps(); } catch (e) {}
-            try { loadDnsRecords(); } catch (e) {}
-            try { loadMailAccounts(); } catch (e) {}
-            try { loadFiles(currentPath); } catch (e) {}
+            postLoginSuccess();
         } else {
             showLoginScreen();
         }
     } catch (e) {
-        hideLoginScreen();
-        try { if (typeof fetchLiveMetrics === 'function') fetchLiveMetrics(); } catch (e) {}
-        try { loadSites(); } catch (e) {}
-        try { loadNodeApps(); } catch (e) {}
-        try { loadFiles(currentPath); } catch (e) {}
+        showLoginScreen();
     }
 }
 
@@ -76,33 +68,206 @@ async function handleLogin(event) {
     event.preventDefault();
     const passInput = document.getElementById('admin-pass-input').value.trim();
     const errorEl = document.getElementById('login-error');
+    if (errorEl) {
+        errorEl.innerText = '';
+        errorEl.style.display = 'none';
+    }
+
+    const deviceToken = localStorage.getItem('spanel_trusted_device') || '';
 
     try {
+        const btn = document.getElementById('btn-login-pass');
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Checking...';
+
         const res = await fetch('/api/login', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ password: passInput })
+            body: JSON.stringify({ password: passInput, deviceToken: deviceToken })
         });
         const data = await res.json();
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Continue';
 
-        if (data.success && data.token) {
+        if (data.success && data.trustedDevice && data.token) {
+            // Direct login: Browser is recognized as a 30-day trusted device!
             authToken = data.token;
             localStorage.setItem('spanel_token', authToken);
             hideLoginScreen();
-            try { if (typeof fetchLiveMetrics === 'function') fetchLiveMetrics(); } catch (e) {}
-            try { loadSites(); } catch (e) {}
-            try { loadNodeApps(); } catch (e) {}
-            try { loadDnsRecords(); } catch (e) {}
-            try { loadMailAccounts(); } catch (e) {}
-            try { loadFiles(currentPath); } catch (e) {}
-            try { showNotification('Welcome to SPanel Pro Admin Dashboard!'); } catch (e) {}
-        } else {
+            postLoginSuccess('Welcome back! Trusted device recognized (30-day active).');
+            return;
+        }
+
+        if (data.success && data.requireOtp) {
+            // Step 2: Show 6-digit verification code screen
+            tempOtpToken = data.tempToken;
+            const stepPass = document.getElementById('login-step-pass');
+            const stepOtp = document.getElementById('login-step-otp');
+            const emailTarget = document.getElementById('otp-target-email');
+            const previewBanner = document.getElementById('otp-preview-banner');
+            const previewCode = document.getElementById('otp-preview-code');
+            const otpInput = document.getElementById('otp-code-input');
+
+            if (stepPass) stepPass.style.display = 'none';
+            if (stepOtp) stepOtp.style.display = 'block';
+            if (emailTarget) emailTarget.textContent = data.email || 'shwetun@stech.asia';
+
+            if (data.previewOtp && previewBanner && previewCode) {
+                previewCode.textContent = data.previewOtp;
+                previewBanner.style.display = 'block';
+            }
+
+            if (otpInput) {
+                otpInput.value = '';
+                setTimeout(() => otpInput.focus(), 150);
+            }
+            return;
+        }
+
+        if (errorEl) {
             errorEl.innerText = data.error || 'Invalid admin password!';
             errorEl.style.display = 'block';
         }
     } catch (e) {
-        errorEl.innerText = 'Login server error.';
-        errorEl.style.display = 'block';
+        const btn = document.getElementById('btn-login-pass');
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Continue';
+        if (errorEl) {
+            errorEl.innerText = 'Login server error: ' + e.message;
+            errorEl.style.display = 'block';
+        }
+    }
+}
+
+async function handleVerifyOtp(event) {
+    event.preventDefault();
+    const otpInput = document.getElementById('otp-code-input');
+    const rememberCb = document.getElementById('remember-device-cb');
+    const errorEl = document.getElementById('login-error');
+    const btn = document.getElementById('btn-verify-otp');
+
+    if (errorEl) {
+        errorEl.innerText = '';
+        errorEl.style.display = 'none';
+    }
+
+    const otpCode = (otpInput ? otpInput.value : '').trim();
+    const rememberDevice = rememberCb ? rememberCb.checked : false;
+
+    if (!otpCode || otpCode.length !== 6) {
+        if (errorEl) {
+            errorEl.innerText = 'Please enter a valid 6-digit verification code.';
+            errorEl.style.display = 'block';
+        }
+        return;
+    }
+
+    try {
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verifying...';
+
+        const res = await fetch('/api/login/verify-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                tempToken: tempOtpToken,
+                otpCode: otpCode,
+                rememberDevice: rememberDevice
+            })
+        });
+
+        const data = await res.json();
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-lock-open"></i> Verify & Unlock';
+
+        if (data.success && data.token) {
+            authToken = data.token;
+            localStorage.setItem('spanel_token', authToken);
+
+            if (data.deviceToken) {
+                localStorage.setItem('spanel_trusted_device', data.deviceToken);
+            }
+
+            hideLoginScreen();
+            backToPassStep();
+            postLoginSuccess(rememberDevice ? 'Browser verified & trusted for 30 days!' : '2-Step Verification successful!');
+        } else {
+            if (errorEl) {
+                errorEl.innerText = data.error || 'Verification failed. Incorrect code.';
+                errorEl.style.display = 'block';
+            }
+        }
+    } catch (e) {
+        if (btn) btn.innerHTML = '<i class="fa-solid fa-lock-open"></i> Verify & Unlock';
+        if (errorEl) {
+            errorEl.innerText = 'Verification server error: ' + e.message;
+            errorEl.style.display = 'block';
+        }
+    }
+}
+
+async function handleResendOtp() {
+    const errorEl = document.getElementById('login-error');
+    const previewBanner = document.getElementById('otp-preview-banner');
+    const previewCode = document.getElementById('otp-preview-code');
+
+    try {
+        const res = await fetch('/api/login/resend-otp', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tempToken: tempOtpToken })
+        });
+        const data = await res.json();
+
+        if (data.success) {
+            if (data.previewOtp && previewBanner && previewCode) {
+                previewCode.textContent = data.previewOtp;
+                previewBanner.style.display = 'block';
+            }
+            try { showNotification('New verification code generated!'); } catch (e) {}
+            if (errorEl) {
+                errorEl.innerText = '';
+                errorEl.style.display = 'none';
+            }
+        } else {
+            if (errorEl) {
+                errorEl.innerText = data.error || 'Failed to resend code.';
+                errorEl.style.display = 'block';
+            }
+        }
+    } catch (e) {
+        if (errorEl) {
+            errorEl.innerText = 'Failed to resend code: ' + e.message;
+            errorEl.style.display = 'block';
+        }
+    }
+}
+
+function backToPassStep() {
+    const stepPass = document.getElementById('login-step-pass');
+    const stepOtp = document.getElementById('login-step-otp');
+    const errorEl = document.getElementById('login-error');
+
+    if (stepPass) stepPass.style.display = 'block';
+    if (stepOtp) stepOtp.style.display = 'none';
+    if (errorEl) {
+        errorEl.innerText = '';
+        errorEl.style.display = 'none';
+    }
+}
+
+function handleLogout() {
+    authToken = '';
+    localStorage.removeItem('spanel_token');
+    showLoginScreen();
+    backToPassStep();
+    try { showNotification('Session locked. Logged out securely.'); } catch (e) {}
+}
+
+function postLoginSuccess(msg) {
+    try { if (typeof fetchLiveMetrics === 'function') fetchLiveMetrics(); } catch (e) {}
+    try { loadSites(); } catch (e) {}
+    try { loadNodeApps(); } catch (e) {}
+    try { loadDnsRecords(); } catch (e) {}
+    try { loadMailAccounts(); } catch (e) {}
+    try { loadFiles(currentPath); } catch (e) {}
+    if (msg) {
+        try { showNotification(msg); } catch (e) {}
     }
 }
 

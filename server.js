@@ -10,23 +10,68 @@ const PUBLIC_DIR = __dirname;
 const AUTH_CONFIG_FILE = path.join(__dirname, 'auth_config.json');
 const MAIL_CONFIG_FILE = path.join(__dirname, 'mail_accounts.json');
 const DNS_CONFIG_FILE = path.join(__dirname, 'dns_records.json');
+const TRUSTED_DEVICES_FILE = path.join(__dirname, 'trusted_devices.json');
 const ADMIN_DEFAULT_HASH = crypto.createHash('sha256').update('Blackdj@1991').digest('hex');
 
 let authConfig = {
-    username: 'admin',
-    passwordHash: ADMIN_DEFAULT_HASH
+    username: 'shwetun@stech.asia',
+    email: 'shwetun@stech.asia',
+    passwordHash: ADMIN_DEFAULT_HASH,
+    twoFactorEnabled: true
 };
 
 if (fs.existsSync(AUTH_CONFIG_FILE)) {
     try {
         const loadedConfig = JSON.parse(fs.readFileSync(AUTH_CONFIG_FILE, 'utf-8'));
         if (loadedConfig.passwordHash) {
-            authConfig = loadedConfig;
+            authConfig = Object.assign(authConfig, loadedConfig);
+            if (!authConfig.email || authConfig.email === 'admin') authConfig.email = 'shwetun@stech.asia';
+            if (!authConfig.username || authConfig.username === 'admin') authConfig.username = 'shwetun@stech.asia';
+            fs.writeFileSync(AUTH_CONFIG_FILE, JSON.stringify(authConfig, null, 2));
         }
     } catch (e) {}
 } else {
     fs.writeFileSync(AUTH_CONFIG_FILE, JSON.stringify(authConfig, null, 2));
 }
+
+// Trusted Devices (30 Days Persistence)
+function getTrustedDevices() {
+    if (!fs.existsSync(TRUSTED_DEVICES_FILE)) return {};
+    try {
+        return JSON.parse(fs.readFileSync(TRUSTED_DEVICES_FILE, 'utf-8'));
+    } catch (e) {
+        return {};
+    }
+}
+
+function saveTrustedDevice(token) {
+    const devices = getTrustedDevices();
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    devices[token] = {
+        created: Date.now(),
+        expiresAt: Date.now() + thirtyDaysMs,
+        user: authConfig.username
+    };
+    try {
+        fs.writeFileSync(TRUSTED_DEVICES_FILE, JSON.stringify(devices, null, 2));
+    } catch (e) {}
+}
+
+function isTrustedDevice(token) {
+    if (!token) return false;
+    const devices = getTrustedDevices();
+    const entry = devices[token];
+    if (!entry) return false;
+    if (Date.now() > entry.expiresAt) {
+        delete devices[token];
+        try { fs.writeFileSync(TRUSTED_DEVICES_FILE, JSON.stringify(devices, null, 2)); } catch (e) {}
+        return false;
+    }
+    return true;
+}
+
+// In-Memory Pending OTP Store (5 Minutes Expiry)
+const pendingOtps = new Map();
 
 const PERMANENT_API_KEY = process.env.SPANEL_API_KEY || 'spanel_sk_live_998877665544332211';
 const activeTokens = new Set();
@@ -77,26 +122,113 @@ const server = http.createServer(async (req, res) => {
     if (req.url.startsWith('/api/')) {
         res.setHeader('Content-Type', 'application/json');
 
-        // Admin Login Action
+        // Admin Login Action (Step 1: Credentials & Trusted Device Verification)
         if (req.url === '/api/login' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const pass = (body.password || '').trim();
+            const deviceToken = (body.deviceToken || req.headers['x-device-token'] || '').trim();
             const passHash = crypto.createHash('sha256').update(pass).digest('hex');
 
-            console.log(`[LOGIN ATTEMPT] Received: "${pass}", Hash: "${passHash}", Expected: "${authConfig.passwordHash}"`);
+            if (passHash !== authConfig.passwordHash) {
+                return res.end(JSON.stringify({ success: false, error: 'Invalid password' }));
+            }
 
-            if (passHash === authConfig.passwordHash) {
+            // Check if device is already trusted within 30 days
+            if (isTrustedDevice(deviceToken)) {
                 const token = crypto.randomBytes(24).toString('hex');
                 activeTokens.add(token);
                 return res.end(JSON.stringify({
                     success: true,
+                    trustedDevice: true,
                     token,
                     username: authConfig.username,
                     apiKey: PERMANENT_API_KEY
                 }));
-            } else {
-                return res.end(JSON.stringify({ success: false, error: 'Invalid password' }));
             }
+
+            // Generate 6-Digit Email Verification Code
+            const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+            const tempToken = crypto.randomBytes(24).toString('hex');
+
+            pendingOtps.set(tempToken, {
+                code: otpCode,
+                email: authConfig.email || 'shwetun@stech.asia',
+                expiresAt: Date.now() + 5 * 60 * 1000 // 5 mins
+            });
+
+            console.log(`[2FA OTP GENERATED] For: ${authConfig.email} -> Code: ${otpCode}`);
+
+            return res.end(JSON.stringify({
+                success: true,
+                requireOtp: true,
+                tempToken: tempToken,
+                email: authConfig.email || 'shwetun@stech.asia',
+                previewOtp: otpCode // Convenient dev helper while real mail server is pending
+            }));
+        }
+
+        // Admin Login (Step 2: 2FA OTP Verification & 30-Day Device Trust)
+        if (req.url === '/api/login/verify-otp' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const tempToken = (body.tempToken || '').trim();
+            const userOtp = (body.otpCode || '').trim();
+            const rememberDevice = !!body.rememberDevice;
+
+            const record = pendingOtps.get(tempToken);
+            if (!record) {
+                return res.end(JSON.stringify({ success: false, error: 'Session expired. Please login again.' }));
+            }
+
+            if (Date.now() > record.expiresAt) {
+                pendingOtps.delete(tempToken);
+                return res.end(JSON.stringify({ success: false, error: 'Verification code has expired. Please request a new one.' }));
+            }
+
+            if (userOtp !== record.code) {
+                return res.end(JSON.stringify({ success: false, error: 'Incorrect 6-digit verification code' }));
+            }
+
+            // OTP is valid!
+            pendingOtps.delete(tempToken);
+            const token = crypto.randomBytes(24).toString('hex');
+            activeTokens.add(token);
+
+            let newDeviceToken = null;
+            if (rememberDevice) {
+                newDeviceToken = crypto.randomBytes(32).toString('hex');
+                saveTrustedDevice(newDeviceToken);
+            }
+
+            return res.end(JSON.stringify({
+                success: true,
+                token,
+                deviceToken: newDeviceToken,
+                username: authConfig.username,
+                apiKey: PERMANENT_API_KEY
+            }));
+        }
+
+        // Resend OTP Code
+        if (req.url === '/api/login/resend-otp' && req.method === 'POST') {
+            const body = await getJsonBody(req);
+            const tempToken = (body.tempToken || '').trim();
+            const record = pendingOtps.get(tempToken);
+            if (!record) {
+                return res.end(JSON.stringify({ success: false, error: 'Session not found. Please log in again.' }));
+            }
+
+            const newCode = Math.floor(100000 + Math.random() * 900000).toString();
+            record.code = newCode;
+            record.expiresAt = Date.now() + 5 * 60 * 1000;
+            pendingOtps.set(tempToken, record);
+
+            console.log(`[2FA OTP RESENT] Code: ${newCode}`);
+
+            return res.end(JSON.stringify({
+                success: true,
+                message: 'New code sent to ' + record.email,
+                previewOtp: newCode
+            }));
         }
 
         // Verify Authentication Status
@@ -244,12 +376,12 @@ const server = http.createServer(async (req, res) => {
                 try { dnsRecords = JSON.parse(fs.readFileSync(DNS_CONFIG_FILE, 'utf-8')); } catch (e) {}
             } else {
                 dnsRecords = [
-                    { type: 'A', name: '@', value: '167.172.79.75', ttl: '3600' },
-                    { type: 'A', name: 'panel', value: '167.172.79.75', ttl: '3600' },
-                    { type: 'A', name: 'pos', value: '167.172.79.75', ttl: '3600' },
+                    { type: 'A', name: '@', value: '104.207.92.237', ttl: '3600' },
+                    { type: 'A', name: 'panel', value: '104.207.92.237', ttl: '3600' },
+                    { type: 'A', name: 'pos', value: '104.207.92.237', ttl: '3600' },
                     { type: 'CNAME', name: 'www', value: 'stech.asia', ttl: '3600' },
                     { type: 'MX', name: '@', value: 'mail.stech.asia', ttl: '3600' },
-                    { type: 'TXT', name: '@', value: 'v=spf1 mx a ip4:167.172.79.75 ~all', ttl: '3600' }
+                    { type: 'TXT', name: '@', value: 'v=spf1 mx a ip4:104.207.92.237 ~all', ttl: '3600' }
                 ];
                 fs.writeFileSync(DNS_CONFIG_FILE, JSON.stringify(dnsRecords, null, 2));
             }

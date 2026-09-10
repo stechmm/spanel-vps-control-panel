@@ -24,21 +24,71 @@
                 <h2>SPanel Pro</h2>
                 <p>Enterprise Secure VPS Control Panel</p>
             </div>
-            <form onsubmit="handleLogin(event)">
-                <div class="form-group">
-                    <label><i class="fa-solid fa-lock"></i> Admin Password</label>
-                    <div class="password-input-wrapper">
-                        <input type="password" id="admin-pass-input" class="form-control" placeholder="Enter admin password..." required autofocus>
-                        <button type="button" class="eye-toggle-btn" onclick="togglePasswordVisibility()" title="Show/Hide Password">
-                            <i class="fa-solid fa-eye" id="toggle-pass-eye"></i>
+
+            <!-- STEP 1: PASSWORD AUTH -->
+            <div id="login-step-pass">
+                <div style="margin-bottom: 14px; font-size: 0.85rem; color: #94a3b8; display: flex; align-items: center; justify-content: space-between; background: rgba(255,255,255,0.03); padding: 8px 12px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.06);">
+                    <span><i class="fa-solid fa-user-circle text-primary" style="margin-right: 6px;"></i> Account:</span>
+                    <strong style="color: #f1f5f9;">shwetun@stech.asia</strong>
+                </div>
+                <form onsubmit="handleLogin(event)">
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-lock"></i> Admin Password</label>
+                        <div class="password-input-wrapper">
+                            <input type="password" id="admin-pass-input" class="form-control" placeholder="Enter admin password..." required autofocus>
+                            <button type="button" class="eye-toggle-btn" onclick="togglePasswordVisibility()" title="Show/Hide Password">
+                                <i class="fa-solid fa-eye" id="toggle-pass-eye"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <button type="submit" id="btn-login-pass" class="btn btn-primary btn-block" style="margin-top: 16px;">
+                        <i class="fa-solid fa-arrow-right-to-bracket"></i> Continue
+                    </button>
+                </form>
+            </div>
+
+            <!-- STEP 2: 2-STEP EMAIL OTP VERIFICATION -->
+            <div id="login-step-otp" style="display: none;">
+                <div style="background: rgba(99, 102, 241, 0.1); border: 1px solid rgba(99, 102, 241, 0.3); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; font-size: 0.85rem; color: #c7d2fe; text-align: center;">
+                    <i class="fa-solid fa-envelope-circle-check text-primary" style="font-size: 1.2rem; display: block; margin-bottom: 4px;"></i>
+                    Verification code sent to <br>
+                    <strong id="otp-target-email" style="color: #fff; font-size: 0.95rem;">shwetun@stech.asia</strong>
+                </div>
+
+                <!-- Dev Preview Badge (Active while SMTP server is being configured) -->
+                <div id="otp-preview-banner" style="display: none; background: rgba(16, 185, 129, 0.12); border: 1px dashed #10b981; border-radius: 6px; padding: 8px 12px; margin-bottom: 14px; font-size: 0.82rem; color: #6ee7b7; text-align: center;">
+                    <i class="fa-solid fa-paper-plane"></i> Quick Code: <strong id="otp-preview-code" style="letter-spacing: 3px; font-size: 1.1rem; color: #fff; margin-left: 6px;"></strong>
+                </div>
+
+                <form onsubmit="handleVerifyOtp(event)">
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-shield-keyhole"></i> 6-Digit Verification Code</label>
+                        <input type="text" id="otp-code-input" class="form-control" maxlength="6" pattern="[0-9]{6}" inputmode="numeric" placeholder="123456" style="letter-spacing: 6px; font-size: 1.3rem; text-align: center; font-weight: 700;" required autocomplete="one-time-code">
+                    </div>
+
+                    <div style="margin: 14px 0; display: flex; align-items: center; gap: 8px; font-size: 0.84rem; color: #cbd5e1;">
+                        <input type="checkbox" id="remember-device-cb" style="width: 16px; height: 16px; accent-color: #6366f1; cursor: pointer;" checked>
+                        <label for="remember-device-cb" style="cursor: pointer; user-select: none; margin: 0;">
+                            Remember this browser for 30 days
+                        </label>
+                    </div>
+
+                    <button type="submit" id="btn-verify-otp" class="btn btn-primary btn-block" style="margin-top: 10px;">
+                        <i class="fa-solid fa-lock-open"></i> Verify & Unlock
+                    </button>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 16px; font-size: 0.82rem;">
+                        <button type="button" class="btn-link" onclick="backToPassStep()" style="background: none; border: none; color: #94a3b8; cursor: pointer; text-decoration: underline; padding: 0;">
+                            <i class="fa-solid fa-arrow-left"></i> Back to Password
+                        </button>
+                        <button type="button" class="btn-link" onclick="handleResendOtp()" style="background: none; border: none; color: #818cf8; cursor: pointer; text-decoration: underline; padding: 0;">
+                            <i class="fa-solid fa-rotate-right"></i> Resend Code
                         </button>
                     </div>
-                </div>
-                <button type="submit" class="btn btn-primary btn-block" style="margin-top: 16px;">
-                    <i class="fa-solid fa-key"></i> Unlock Dashboard
-                </button>
-            </form>
-            <div id="login-error" class="login-error-msg"></div>
+                </form>
+            </div>
+
+            <div id="login-error" class="login-error-msg" style="margin-top: 14px;"></div>
         </div>
     </div>
 
@@ -116,14 +166,17 @@
                 </a>
             </nav>
 
-            <div class="sidebar-footer">
+            <div class="sidebar-footer" style="display: flex; align-items: center; justify-content: space-between;">
                 <div class="user-info">
                     <i class="fa-solid fa-user-shield avatar"></i>
                     <div class="user-details">
-                        <span class="user-name">root@167.172.79.75</span>
-                        <span class="user-role">S-Tech Systems</span>
+                        <span class="user-name">shwetun@stech.asia</span>
+                        <span class="user-role">104.207.92.237</span>
                     </div>
                 </div>
+                <button class="btn-icon" onclick="handleLogout()" title="Lock / Logout Session" style="color: #94a3b8; border: none; background: transparent; cursor: pointer; padding: 6px 8px; border-radius: 6px; transition: color 0.2s;">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                </button>
             </div>
         </aside>
 
@@ -726,7 +779,7 @@
                     <div class="page-title-bar">
                         <div>
                             <h1>SSH Web Terminal Console</h1>
-                            <p class="subtitle">Direct command line execution on 167.172.79.75</p>
+                            <p class="subtitle">Direct command line execution on 104.207.92.237</p>
                         </div>
                         <span class="badge badge-success"><i class="fa-solid fa-signal"></i> Connected as root</span>
                     </div>
@@ -738,15 +791,15 @@
                                 <span class="dot yellow"></span>
                                 <span class="dot green"></span>
                             </div>
-                            <span class="term-title">root@167.172.79.75: ~</span>
+                            <span class="term-title">root@104.207.92.237: ~</span>
                             <button class="btn-icon-sm" id="clear-term" title="Clear Console"><i class="fa-solid fa-eraser"></i></button>
                         </div>
                         <div class="terminal-body" id="terminal-body">
-                            <div class="term-line output">Linux do-sgp1-vps (167.172.79.75) 6.8.0-137-generic #137-Ubuntu x86_64</div>
+                            <div class="term-line output">Linux vps-ubuntu (104.207.92.237) 6.8.0-ubuntu x86_64</div>
                             <div class="term-line output">Welcome to SPanel Pro Enterprise Web Console</div>
-                            <div class="term-line output">Connected to VPS: <span class="term-highlight">167.172.79.75</span></div>
+                            <div class="term-line output">Connected to VPS: <span class="term-highlight">104.207.92.237</span></div>
                             <div class="term-prompt-line">
-                                <span class="prompt-text">root@167.172.79.75:/var/www#</span>
+                                <span class="prompt-text">root@104.207.92.237:/var/www#</span>
                                 <input type="text" id="term-input" autocomplete="off" autofocus spellcheck="false">
                             </div>
                         </div>
@@ -892,7 +945,7 @@
                 </div>
                 <div class="form-group">
                     <label>Target Value (IP or Domain)</label>
-                    <input type="text" id="dns-value-input" class="form-control" placeholder="167.172.79.75 or mail.stech.asia">
+                    <input type="text" id="dns-value-input" class="form-control" placeholder="104.207.92.237 or mail.stech.asia">
                 </div>
             </div>
             <div class="modal-footer">

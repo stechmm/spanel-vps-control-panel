@@ -26,7 +26,7 @@ function initTerminal() {
             const cmd = input.value.trim();
             if (cmd === '') return;
 
-            appendTerminalLine(`root@167.172.79.75:${terminalCwd}# ${cmd}`, 'prompt');
+            appendTerminalLine(`root@104.207.92.237:${terminalCwd}# ${cmd}`, 'prompt');
             input.value = '';
 
             if (cmd.toLowerCase() === 'clear') {
@@ -72,7 +72,7 @@ function initTerminal() {
 function updatePromptLine(cwd) {
     const promptText = document.querySelector('.prompt-text');
     if (promptText) {
-        promptText.textContent = `root@167.172.79.75:${cwd}#`;
+        promptText.textContent = `root@104.207.92.237:${cwd}#`;
     }
 }
 
