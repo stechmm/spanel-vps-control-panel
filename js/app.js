@@ -28,21 +28,21 @@ async function checkAuth() {
         const data = await res.json();
         if (data.authenticated) {
             hideLoginScreen();
-            if (typeof fetchLiveMetrics === 'function') fetchLiveMetrics();
-            loadSites();
-            loadNodeApps();
-            loadDnsRecords();
-            loadMailAccounts();
-            loadFiles(currentPath);
+            try { if (typeof fetchLiveMetrics === 'function') fetchLiveMetrics(); } catch (e) {}
+            try { loadSites(); } catch (e) {}
+            try { loadNodeApps(); } catch (e) {}
+            try { loadDnsRecords(); } catch (e) {}
+            try { loadMailAccounts(); } catch (e) {}
+            try { loadFiles(currentPath); } catch (e) {}
         } else {
             showLoginScreen();
         }
     } catch (e) {
         hideLoginScreen();
-        if (typeof fetchLiveMetrics === 'function') fetchLiveMetrics();
-        loadSites();
-        loadNodeApps();
-        loadFiles(currentPath);
+        try { if (typeof fetchLiveMetrics === 'function') fetchLiveMetrics(); } catch (e) {}
+        try { loadSites(); } catch (e) {}
+        try { loadNodeApps(); } catch (e) {}
+        try { loadFiles(currentPath); } catch (e) {}
     }
 }
 
@@ -89,13 +89,13 @@ async function handleLogin(event) {
             authToken = data.token;
             localStorage.setItem('spanel_token', authToken);
             hideLoginScreen();
-            if (typeof fetchLiveMetrics === 'function') fetchLiveMetrics();
-            loadSites();
-            loadNodeApps();
-            loadDnsRecords();
-            loadMailAccounts();
-            loadFiles(currentPath);
-            showNotification('Welcome to SPanel Pro Admin Dashboard!');
+            try { if (typeof fetchLiveMetrics === 'function') fetchLiveMetrics(); } catch (e) {}
+            try { loadSites(); } catch (e) {}
+            try { loadNodeApps(); } catch (e) {}
+            try { loadDnsRecords(); } catch (e) {}
+            try { loadMailAccounts(); } catch (e) {}
+            try { loadFiles(currentPath); } catch (e) {}
+            try { showNotification('Welcome to SPanel Pro Admin Dashboard!'); } catch (e) {}
         } else {
             errorEl.innerText = data.error || 'Invalid admin password!';
             errorEl.style.display = 'block';
@@ -1366,3 +1366,33 @@ async function loadProcesses() {
         if (pm2Tbody) pm2Tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:#ef4444;">Error: ${e.message}</td></tr>`;
     }
 }
+
+// Toast Notification
+function showNotification(msg) {
+    try {
+        const toast = document.createElement('div');
+        toast.style.cssText = `
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            background: #1e293b;
+            color: #fff;
+            border: 1px solid var(--accent-primary, #6366f1);
+            padding: 12px 20px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            z-index: 99999;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: fadeIn 0.3s ease;
+        `;
+        toast.innerHTML = `<i class="fa-solid fa-circle-check text-success" style="color:#10b981;"></i> ${msg}`;
+        document.body.appendChild(toast);
+        setTimeout(() => toast.remove(), 4000);
+    } catch (e) {
+        console.log('Notification:', msg);
+    }
+}
+

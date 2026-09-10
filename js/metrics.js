@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', () => {
 function initMetricsChart() {
     const ctx = document.getElementById('systemMetricsChart');
     if (!ctx) return;
+    if (typeof Chart === 'undefined') return;
 
     const labels = [];
     const cpuData = [];
