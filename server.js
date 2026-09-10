@@ -573,13 +573,15 @@ const server = http.createServer(async (req, res) => {
 
         // 9. All-in-One Create App / Web / Domain + Git / ZIP Deployer
         if (req.url === '/api/create-site' && req.method === 'POST') {
-            const body = await getJsonBody(req);
-            let appType = body.appType || body.type || 'auto'; // 'auto' | 'static' | 'proxy' | 'nodejs' | 'python'
-            const sourceType = body.sourceType || 'blank'; // 'git' | 'zip' | 'blank'
-            const repoUrl = (body.repoUrl || '').trim();
-            const branch = (body.branch || 'main').trim();
-            const startScript = (body.startScript || '').trim();
-            const gitToken = (body.gitToken || '').trim();
+            try {
+                const body = await getJsonBody(req);
+                const domain = (body.domain || '').trim().toLowerCase();
+                let appType = body.appType || body.type || 'auto'; // 'auto' | 'static' | 'proxy' | 'nodejs' | 'python'
+                const sourceType = body.sourceType || 'blank'; // 'git' | 'zip' | 'blank'
+                const repoUrl = (body.repoUrl || '').trim();
+                const branch = (body.branch || 'main').trim();
+                const startScript = (body.startScript || '').trim();
+                const gitToken = (body.gitToken || '').trim();
 
             if (!domain) {
                 return res.end(JSON.stringify({ success: false, error: 'Domain or subdomain name is required' }));
@@ -754,7 +756,14 @@ const server = http.createServer(async (req, res) => {
                 detectedStartScript: isProxy ? runTarget : null,
                 log: deployLog.join('\n')
             }));
+        } catch (err) {
+            console.error('[create-site critical error]', err);
+            return res.end(JSON.stringify({
+                success: false,
+                error: 'Server Error during installation: ' + err.message
+            }));
         }
+    }
 
         // 10. Issue SSL Certificate
         if (req.url === '/api/issue-ssl' && req.method === 'POST') {

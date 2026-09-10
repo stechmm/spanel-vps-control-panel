@@ -561,7 +561,19 @@ async function submitInstallApp() {
                 },
                 body: JSON.stringify(finalPayload)
             });
-            const data = await res.json();
+            let data;
+            const text = await res.text();
+            try {
+                data = JSON.parse(text);
+            } catch (jsonErr) {
+                if (res.status === 502) {
+                    data = { success: false, error: 'Server restarted or returned 502 Bad Gateway. Please try again.' };
+                } else if (res.status === 504) {
+                    data = { success: false, error: 'Request timed out (504 Gateway Timeout). The Git clone or npm install took too long.' };
+                } else {
+                    data = { success: false, error: `Server Response (HTTP ${res.status}): ${text.slice(0, 150)}` };
+                }
+            }
 
             if (data.success) {
                 const platInfo = data.appType ? ` [Platform: <strong>${data.appType.toUpperCase()}</strong>]` : '';
