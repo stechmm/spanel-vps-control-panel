@@ -351,23 +351,69 @@ const server = http.createServer(async (req, res) => {
             }));
         }
 
-        // 9. Create Domain / Website + Nginx Config
+        // 9. All-in-One Create App / Web / Domain + Git / ZIP Deployer
         if (req.url === '/api/create-site' && req.method === 'POST') {
             const body = await getJsonBody(req);
             const domain = (body.domain || '').trim().toLowerCase();
-            const type = body.type || 'static';
+            const appType = body.appType || body.type || 'static'; // 'static' | 'proxy' | 'nodejs' | 'python'
+            const sourceType = body.sourceType || 'blank'; // 'git' | 'zip' | 'blank'
+            const port = parseInt(body.port, 10) || 3000;
+            const repoUrl = (body.repoUrl || '').trim();
+            const branch = (body.branch || 'main').trim();
+            const startScript = (body.startScript || 'index.js').trim();
 
             if (!domain) {
-                return res.end(JSON.stringify({ success: false, error: 'Domain name is required' }));
+                return res.end(JSON.stringify({ success: false, error: 'Domain or subdomain name is required' }));
             }
 
             const siteDir = `/var/www/${domain}`;
             const nginxConfPath = `/etc/nginx/sites-available/${domain}`;
             const nginxLinkPath = `/etc/nginx/sites-enabled/${domain}`;
 
+            await runCmd(`mkdir -p ${siteDir}`);
+
+            let deployLog = [];
+
+            // 1. Handle Source (Git / ZIP / Blank)
+            if (sourceType === 'git' && repoUrl) {
+                deployLog.push(`Cloning Git repo ${repoUrl} (branch: ${branch})...`);
+                // If directory is not empty, clone into it or pull
+                const gitRes = await runCmd(`git clone -b ${branch} "${repoUrl}" "${siteDir}" || (cd "${siteDir}" && git pull origin ${branch})`);
+                deployLog.push(gitRes.stdout || gitRes.stderr || 'Git clone complete');
+            } else if (sourceType === 'zip' && body.zipBase64) {
+                deployLog.push('Uploading and extracting ZIP package...');
+                const tempZipPath = path.join(siteDir, '_temp_package.zip');
+                const buffer = Buffer.from(body.zipBase64, 'base64');
+                fs.writeFileSync(tempZipPath, buffer);
+                const unzipRes = await runCmd(`unzip -o "${tempZipPath}" -d "${siteDir}" && rm -f "${tempZipPath}"`);
+                deployLog.push(unzipRes.stdout || unzipRes.stderr || 'Unzip complete');
+            } else {
+                // Blank template
+                if (!fs.existsSync(`${siteDir}/index.html`)) {
+                    fs.writeFileSync(`${siteDir}/index.html`, `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><title>${domain}</title>
+<style>body{font-family:sans-serif;background:#0f172a;color:#f8fafc;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;}h1{color:#818cf8;}</style></head>
+<body><div style="text-align:center;"><h1>🚀 ${domain} is Live!</h1><p>Hosted & managed via SPanel Pro</p></div></body></html>`);
+                }
+            }
+
+            // 2. Handle Node.js / Python PM2 background process
+            const isProxy = (appType === 'proxy' || appType === 'nodejs' || appType === 'python');
+            if (appType === 'nodejs') {
+                if (fs.existsSync(path.join(siteDir, 'package.json'))) {
+                    deployLog.push('Installing npm dependencies...');
+                    await runCmd(`cd "${siteDir}" && npm install --production`);
+                }
+                const runTarget = fs.existsSync(path.join(siteDir, startScript)) ? startScript : (fs.existsSync(path.join(siteDir, 'server.js')) ? 'server.js' : 'index.js');
+                deployLog.push(`Starting PM2 app: ${domain}...`);
+                await runCmd(`cd "${siteDir}" && PORT=${port} pm2 start "${runTarget}" --name "${domain}" --update-env || pm2 restart "${domain}"`);
+                await runCmd('pm2 save');
+            }
+
+            // 3. Generate Nginx Virtual Host Config
             let nginxConfig = '';
-            if (type === 'proxy') {
-                const port = body.port || 3000;
+            if (isProxy) {
                 nginxConfig = `server {
     listen 80;
     server_name ${domain};
@@ -375,9 +421,13 @@ const server = http.createServer(async (req, res) => {
     location / {
         proxy_pass http://127.0.0.1:${port};
         proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_cache_bypass $http_upgrade;
     }
 }`;
             } else {
@@ -385,7 +435,7 @@ const server = http.createServer(async (req, res) => {
     listen 80;
     server_name ${domain};
     root ${siteDir};
-    index index.html index.php;
+    index index.html index.htm index.php;
 
     location / {
         try_files $uri $uri/ /index.html;
@@ -393,33 +443,32 @@ const server = http.createServer(async (req, res) => {
 }`;
             }
 
-            await runCmd(`mkdir -p ${siteDir}`);
-            if (!fs.existsSync(`${siteDir}/index.html`)) {
-                fs.writeFileSync(`${siteDir}/index.html`, `<h1>Welcome to ${domain}</h1><p>Hosted via SPanel Pro</p>`);
-            }
-
             fs.writeFileSync(nginxConfPath, nginxConfig);
             await runCmd(`ln -sf ${nginxConfPath} ${nginxLinkPath}`);
 
-            // Safe-Check: nginx -t first — only reload if syntax OK
+            // 4. Safe-Check: nginx -t first
             const syntaxCheck = await runCmd('nginx -t');
             const syntaxOk = !syntaxCheck.error && (syntaxCheck.stderr.includes('ok') || syntaxCheck.stderr.includes('successful'));
 
             if (!syntaxOk) {
-                // Rollback: remove bad config to prevent nginx breakage
+                // Rollback config
                 await runCmd(`rm -f ${nginxLinkPath}`);
                 return res.end(JSON.stringify({
                     success: false,
-                    error: 'Nginx config syntax error — site NOT created to protect server.',
+                    error: 'Nginx syntax validation failed. Rolling back configuration.',
                     nginxOutput: syntaxCheck.stderr || syntaxCheck.stdout
                 }));
             }
 
-            const reloadRes = await runCmd('systemctl reload nginx');
+            await runCmd('systemctl reload nginx');
+
             return res.end(JSON.stringify({
                 success: true,
-                message: `Website ${domain} created successfully! Nginx config verified & reloaded.`,
-                nginxOutput: syntaxCheck.stderr || reloadRes.stdout
+                message: `App / Domain ${domain} installed and deployed successfully!`,
+                domain: domain,
+                appType: appType,
+                port: isProxy ? port : 80,
+                log: deployLog.join('\n')
             }));
         }
 

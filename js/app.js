@@ -175,6 +175,181 @@ async function loadSites() {
     }
 }
 
+// ============================================================
+// 1-Click App & Website Installer Controller
+// ============================================================
+function openAddSiteModal() {
+    const modal = document.getElementById('modal-add-site');
+    if (!modal) return;
+
+    // Reset fields
+    const domainInput = document.getElementById('app-domain-input');
+    const gitUrl = document.getElementById('app-git-url');
+    const zipInput = document.getElementById('app-zip-file');
+    const statusBox = document.getElementById('app-deploy-status');
+    const btnSubmit = document.getElementById('btn-submit-app-deploy');
+
+    if (domainInput) domainInput.value = '';
+    if (gitUrl) gitUrl.value = '';
+    if (zipInput) zipInput.value = '';
+    if (statusBox) statusBox.style.display = 'none';
+    if (btnSubmit) {
+        btnSubmit.disabled = false;
+        btnSubmit.innerHTML = `<i class="fa-solid fa-rocket"></i> Install & Connect Domain`;
+    }
+
+    togglePlatformOptions();
+    toggleSourceInputs();
+
+    modal.style.display = 'flex';
+    setTimeout(() => domainInput && domainInput.focus(), 100);
+}
+
+function togglePlatformOptions() {
+    const platform = document.getElementById('app-platform-select')?.value || 'static';
+    const proxyGroup = document.getElementById('proxy-settings-group');
+    const scriptWrapper = document.getElementById('node-script-wrapper');
+
+    if (proxyGroup) {
+        if (platform === 'static') {
+            proxyGroup.style.display = 'none';
+        } else {
+            proxyGroup.style.display = 'flex';
+            if (scriptWrapper) {
+                scriptWrapper.style.display = platform === 'nodejs' ? 'block' : 'none';
+            }
+        }
+    }
+}
+
+function toggleSourceInputs() {
+    const selectedSource = document.querySelector('input[name="app_source"]:checked')?.value || 'git';
+    const gitBox = document.getElementById('source-git-box');
+    const zipBox = document.getElementById('source-zip-box');
+    const blankBox = document.getElementById('source-blank-box');
+
+    if (gitBox)   gitBox.style.display   = selectedSource === 'git'   ? 'flex'  : 'none';
+    if (zipBox)   zipBox.style.display   = selectedSource === 'zip'   ? 'block' : 'none';
+    if (blankBox) blankBox.style.display = selectedSource === 'blank' ? 'block' : 'none';
+}
+
+async function submitInstallApp() {
+    const domainInput = document.getElementById('app-domain-input');
+    const domain = (domainInput?.value || '').trim().toLowerCase();
+    const appType = document.getElementById('app-platform-select')?.value || 'static';
+    const sourceType = document.querySelector('input[name="app_source"]:checked')?.value || 'blank';
+    const port = document.getElementById('app-port-input')?.value || 3000;
+    const startScript = document.getElementById('app-script-input')?.value || 'index.js';
+    const repoUrl = (document.getElementById('app-git-url')?.value || '').trim();
+    const branch = (document.getElementById('app-git-branch')?.value || 'main').trim();
+    const zipInput = document.getElementById('app-zip-file');
+
+    const statusBox = document.getElementById('app-deploy-status');
+    const btnSubmit = document.getElementById('btn-submit-app-deploy');
+
+    if (!domain) {
+        alert('Please enter a domain or subdomain name!');
+        if (domainInput) domainInput.focus();
+        return;
+    }
+
+    if (sourceType === 'git' && !repoUrl) {
+        alert('Please enter a Git repository URL!');
+        return;
+    }
+
+    if (sourceType === 'zip' && (!zipInput.files || zipInput.files.length === 0)) {
+        alert('Please select a .zip archive file to upload!');
+        return;
+    }
+
+    // Set UI loading state
+    if (btnSubmit) {
+        btnSubmit.disabled = true;
+        btnSubmit.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Installing Application...`;
+    }
+    if (statusBox) {
+        statusBox.style.display = 'block';
+        statusBox.style.background = 'rgba(99, 102, 241, 0.15)';
+        statusBox.style.color = '#818cf8';
+        statusBox.style.border = '1px solid rgba(99, 102, 241, 0.3)';
+        statusBox.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> Configuring VirtualHost for <strong>${domain}</strong>, deploying files & setting up Nginx...`;
+    }
+
+    const payload = {
+        domain,
+        appType,
+        sourceType,
+        port,
+        startScript,
+        repoUrl,
+        branch
+    };
+
+    const sendRequest = async (finalPayload) => {
+        try {
+            const res = await fetch('/api/create-site', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${authToken}`
+                },
+                body: JSON.stringify(finalPayload)
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                if (statusBox) {
+                    statusBox.style.background = 'rgba(16, 185, 129, 0.15)';
+                    statusBox.style.color = '#34d399';
+                    statusBox.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+                    statusBox.innerHTML = `✅ <strong>${domain}</strong> is successfully deployed and connected!`;
+                }
+                showNotification(`✅ App / Domain ${domain} installed successfully!`);
+                setTimeout(() => {
+                    closeModal('modal-add-site');
+                    loadSites();
+                    loadNodeApps();
+                }, 1200);
+            } else {
+                if (statusBox) {
+                    statusBox.style.background = 'rgba(239, 68, 68, 0.15)';
+                    statusBox.style.color = '#f87171';
+                    statusBox.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+                    statusBox.innerHTML = `❌ Error: ${data.error || 'Installation failed'}<br><pre style="margin-top:6px; font-size:11px;">${data.nginxOutput || ''}</pre>`;
+                }
+                if (btnSubmit) {
+                    btnSubmit.disabled = false;
+                    btnSubmit.innerHTML = `<i class="fa-solid fa-rotate-right"></i> Try Again`;
+                }
+            }
+        } catch (err) {
+            if (statusBox) {
+                statusBox.style.background = 'rgba(239, 68, 68, 0.15)';
+                statusBox.style.color = '#f87171';
+                statusBox.innerHTML = `❌ Network Error: ${err.message}`;
+            }
+            if (btnSubmit) {
+                btnSubmit.disabled = false;
+                btnSubmit.innerHTML = `<i class="fa-solid fa-rotate-right"></i> Try Again`;
+            }
+        }
+    };
+
+    // If ZIP upload, read base64 first
+    if (sourceType === 'zip' && zipInput.files && zipInput.files[0]) {
+        const file = zipInput.files[0];
+        const reader = new FileReader();
+        reader.onload = () => {
+            payload.zipBase64 = reader.result.split(',')[1];
+            sendRequest(payload);
+        };
+        reader.readAsDataURL(file);
+    } else {
+        sendRequest(payload);
+    }
+}
+
 // 2. Node.js PM2 Process Manager
 async function loadNodeApps() {
     const tbody = document.getElementById('pm2-table-body');

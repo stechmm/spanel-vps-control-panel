@@ -775,29 +775,96 @@
         </div>
     </div>
 
-    <!-- Modal Dialog: Add New Website -->
-    <div class="modal-backdrop" id="modal-add-site">
-        <div class="modal-card">
+    <!-- Modal Dialog: All-in-One Add App & Website Installer -->
+    <div class="modal-backdrop" id="modal-add-site" style="z-index: 10000;">
+        <div class="modal-card" style="max-width: 580px; width: 95%;">
             <div class="modal-header">
-                <h3><i class="fa-solid fa-globe"></i> Create New Website / App</h3>
+                <h3><i class="fa-solid fa-rocket text-primary"></i> 1-Click App & Website Installer</h3>
                 <button class="btn-close" onclick="closeModal('modal-add-site')">&times;</button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="display: flex; flex-direction: column; gap: 16px;">
+                <!-- 1. Domain / Subdomain Input -->
                 <div class="form-group">
-                    <label>Domain or Subdomain Name</label>
-                    <input type="text" id="new-domain-input" class="form-control" placeholder="shop.stech.asia or app.stech.asia">
+                    <label><i class="fa-solid fa-globe"></i> Domain or Subdomain</label>
+                    <input type="text" id="app-domain-input" class="form-control" placeholder="e.g. app.stech.asia or mycompany.com" required>
+                    <small style="color:var(--text-muted); font-size:11px;">Supports root domain or any subdomain. Nginx will auto-route to it.</small>
                 </div>
+
+                <!-- 2. Platform / Runtime -->
                 <div class="form-group">
-                    <label>App Server Type</label>
-                    <select id="new-domain-php" class="form-control">
-                        <option value="static">Static HTML / Nginx Web Site</option>
-                        <option value="proxy">Node.js / Python Reverse Proxy App</option>
+                    <label><i class="fa-solid fa-layer-group"></i> Application Platform</label>
+                    <select id="app-platform-select" class="form-control" onchange="togglePlatformOptions()">
+                        <option value="static">Static Web / PHP / HTML (Direct Nginx)</option>
+                        <option value="nodejs" selected>Node.js / Express / Next.js (PM2 Managed)</option>
+                        <option value="proxy">Generic Reverse Proxy App (Python / Go / Custom)</option>
                     </select>
                 </div>
+
+                <!-- Node.js / Proxy Port & Start Script Options -->
+                <div id="proxy-settings-group" style="background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.2); padding: 12px; border-radius: 8px; display: flex; gap: 12px;">
+                    <div style="flex: 1;">
+                        <label style="font-size:12px; margin-bottom:4px; display:block;">Backend Port</label>
+                        <input type="number" id="app-port-input" class="form-control" value="3000" placeholder="3000">
+                    </div>
+                    <div style="flex: 1;" id="node-script-wrapper">
+                        <label style="font-size:12px; margin-bottom:4px; display:block;">Start File</label>
+                        <input type="text" id="app-script-input" class="form-control" value="index.js" placeholder="server.js or index.js">
+                    </div>
+                </div>
+
+                <!-- 3. Source Selection (Git / ZIP / Blank) -->
+                <div class="form-group">
+                    <label><i class="fa-solid fa-download"></i> Deployment Source</label>
+                    <div style="display: flex; gap: 10px; margin-top: 6px;">
+                        <label style="flex:1; display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:10px 14px; border-radius:6px; cursor:pointer; font-size:13px;">
+                            <input type="radio" name="app_source" value="git" checked onchange="toggleSourceInputs()">
+                            <span><i class="fa-brands fa-github text-warning"></i> Git Repo</span>
+                        </label>
+                        <label style="flex:1; display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:10px 14px; border-radius:6px; cursor:pointer; font-size:13px;">
+                            <input type="radio" name="app_source" value="zip" onchange="toggleSourceInputs()">
+                            <span><i class="fa-solid fa-file-zipper text-primary"></i> Upload .ZIP</span>
+                        </label>
+                        <label style="flex:1; display:flex; align-items:center; gap:8px; background:rgba(255,255,255,0.05); padding:10px 14px; border-radius:6px; cursor:pointer; font-size:13px;">
+                            <input type="radio" name="app_source" value="blank" onchange="toggleSourceInputs()">
+                            <span><i class="fa-solid fa-file-lines text-muted"></i> Blank</span>
+                        </label>
+                    </div>
+                </div>
+
+                <!-- Source 1: Git Repository Options -->
+                <div id="source-git-box" style="display: flex; flex-direction: column; gap: 10px;">
+                    <div class="form-group">
+                        <label style="font-size:12px;">Git Repository URL</label>
+                        <input type="text" id="app-git-url" class="form-control" placeholder="https://github.com/user/repository.git">
+                    </div>
+                    <div class="form-group">
+                        <label style="font-size:12px;">Git Branch</label>
+                        <input type="text" id="app-git-branch" class="form-control" value="main" placeholder="main or master">
+                    </div>
+                </div>
+
+                <!-- Source 2: Custom ZIP Upload Options -->
+                <div id="source-zip-box" style="display: none;">
+                    <div class="form-group">
+                        <label style="font-size:12px;">Select .ZIP Archive</label>
+                        <input type="file" id="app-zip-file" class="form-control" accept=".zip">
+                        <small style="color:var(--text-muted); font-size:11px;">Will auto-extract into /var/www/domain and configure Nginx.</small>
+                    </div>
+                </div>
+
+                <!-- Source 3: Blank Template Note -->
+                <div id="source-blank-box" style="display: none;">
+                    <div style="font-size:12px; color:var(--text-muted); padding:8px 12px; background:rgba(255,255,255,0.03); border-radius:6px;">
+                        A clean starter <code>index.html</code> will be deployed. You can edit it via File Manager.
+                    </div>
+                </div>
+
+                <!-- Deployment Progress / Status Banner -->
+                <div id="app-deploy-status" style="display:none; padding:10px 14px; border-radius:6px; font-size:12px; font-family:var(--font-mono); line-height:1.5;"></div>
             </div>
             <div class="modal-footer">
                 <button class="btn btn-secondary" onclick="closeModal('modal-add-site')">Cancel</button>
-                <button class="btn btn-primary" onclick="submitCreateSite()">Create Domain / App</button>
+                <button class="btn btn-primary" id="btn-submit-app-deploy" onclick="submitInstallApp()"><i class="fa-solid fa-rocket"></i> Install & Connect Domain</button>
             </div>
         </div>
     </div>
@@ -1087,8 +1154,8 @@
     </div>
 
     <!-- Custom JS Scripts -->
-    <script src="js/app.js?v=2.3"></script>
-    <script src="js/metrics.js?v=2.3"></script>
-    <script src="js/terminal.js?v=2.3"></script>
+    <script src="js/app.js?v=2.4"></script>
+    <script src="js/metrics.js?v=2.4"></script>
+    <script src="js/terminal.js?v=2.4"></script>
 </body>
 </html>
