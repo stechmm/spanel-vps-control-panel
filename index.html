@@ -905,9 +905,56 @@
                 <!-- Source 1: Git Repository Options -->
                 <div id="source-git-box" style="display: flex; flex-direction: column; gap: 10px;">
                     <div class="form-group">
-                        <label style="font-size:12px;">Git Repository URL</label>
-                        <input type="text" id="app-git-url" class="form-control" placeholder="https://github.com/user/repository.git">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                            <label style="font-size:12px; margin:0;">Git Repository URL</label>
+                            <span class="badge" style="background: rgba(234, 179, 8, 0.15); color: #facc15; font-size: 10px; padding: 2px 7px; border-radius: 4px; cursor: pointer; border: 1px solid rgba(234, 179, 8, 0.3);" onclick="togglePrivateGitHelp()">
+                                <i class="fa-solid fa-lock"></i> Private Repo လား?
+                            </span>
+                        </div>
+                        <input type="text" id="app-git-url" class="form-control" placeholder="https://github.com/user/repo.git သို့မဟုတ် git@github.com:user/repo.git">
                     </div>
+
+                    <!-- Private Git Authentication Box (Optional / Collapsible) -->
+                    <div id="private-git-box" style="display: none; background: rgba(234, 179, 8, 0.08); border: 1px dashed rgba(234, 179, 8, 0.35); border-radius: 8px; padding: 12px; margin-top: -4px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                            <strong style="font-size: 11.5px; color: #fde047;"><i class="fa-solid fa-shield-halved"></i> Private Repository Authentication</strong>
+                            <button type="button" onclick="togglePrivateGitHelp()" style="color:#94a3b8; font-size:11px; background:none; border:none; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
+                        </div>
+                        
+                        <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                            <label style="flex:1; display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.3); padding:6px 10px; border-radius:5px; cursor:pointer; font-size:11.5px;">
+                                <input type="radio" name="private_auth_type" value="token" checked onchange="togglePrivateAuthType()">
+                                <span><i class="fa-solid fa-key text-warning"></i> Access Token (PAT)</span>
+                            </label>
+                            <label style="flex:1; display:flex; align-items:center; gap:6px; background:rgba(0,0,0,0.3); padding:6px 10px; border-radius:5px; cursor:pointer; font-size:11.5px;">
+                                <input type="radio" name="private_auth_type" value="ssh" onchange="togglePrivateAuthType()">
+                                <span><i class="fa-solid fa-terminal text-primary"></i> SSH Deploy Key</span>
+                            </label>
+                        </div>
+
+                        <!-- Sub-tab 1: Personal Access Token -->
+                        <div id="private-auth-token-box">
+                            <label style="font-size: 11px; display:block; margin-bottom: 3px; color:#cbd5e1;">GitHub Personal Access Token (PAT)</label>
+                            <input type="password" id="app-git-token" class="form-control" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" style="font-size: 12px; font-family: var(--font-mono);">
+                            <small style="color:#94a3b8; font-size: 10.5px; display:block; margin-top: 4px;">
+                                GitHub -> Settings -> Developer Settings -> Personal access tokens (Fine-grained သို့ repo scope)
+                            </small>
+                        </div>
+
+                        <!-- Sub-tab 2: SSH Deploy Key -->
+                        <div id="private-auth-ssh-box" style="display: none;">
+                            <label style="font-size: 11px; display:block; margin-bottom: 3px; color:#cbd5e1;">VPS Public SSH Deploy Key</label>
+                            <div style="display: flex; gap: 6px;">
+                                <input type="text" id="server-deploy-key-input" class="form-control" readonly style="font-size: 11px; font-family: var(--font-mono); color:#93c5fd; background: rgba(0,0,0,0.3);" value="Loading key...">
+                                <button type="button" class="btn btn-secondary btn-sm" onclick="copyDeployKey()" style="white-space:nowrap;"><i class="fa-regular fa-copy"></i> Copy</button>
+                            </div>
+                            <small style="color:#94a3b8; font-size: 10.5px; display:block; margin-top: 5px; line-height: 1.4;">
+                                1. Copy နှိပ်ပြီး GitHub Repo -> <strong>Settings</strong> -> <strong>Deploy Keys</strong> တွင် Add ပါ။<br>
+                                2. အပေါ် Git URL တွင် <code>git@github.com:user/repo.git</code> ဟု ထည့်ပါ။
+                            </small>
+                        </div>
+                    </div>
+
                     <div class="form-group">
                         <label style="font-size:12px;">Git Branch</label>
                         <input type="text" id="app-git-branch" class="form-control" value="main" placeholder="main or master">

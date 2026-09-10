@@ -352,6 +352,8 @@ function openAddSiteModal() {
     const portInput = document.getElementById('app-port-input');
     const scriptInput = document.getElementById('app-script-input');
     const gitUrl = document.getElementById('app-git-url');
+    const gitToken = document.getElementById('app-git-token');
+    const privateGitBox = document.getElementById('private-git-box');
     const zipInput = document.getElementById('app-zip-file');
     const statusBox = document.getElementById('app-deploy-status');
     const btnSubmit = document.getElementById('btn-submit-app-deploy');
@@ -360,6 +362,8 @@ function openAddSiteModal() {
     if (portInput) portInput.value = '';
     if (scriptInput) scriptInput.value = '';
     if (gitUrl) gitUrl.value = '';
+    if (gitToken) gitToken.value = '';
+    if (privateGitBox) privateGitBox.style.display = 'none';
     if (zipInput) zipInput.value = '';
     if (statusBox) statusBox.style.display = 'none';
     if (btnSubmit) {
@@ -373,6 +377,53 @@ function openAddSiteModal() {
     modal.style.display = 'flex';
     fetchNextFreePort();
     setTimeout(() => domainInput && domainInput.focus(), 100);
+}
+
+function togglePrivateGitHelp() {
+    const box = document.getElementById('private-git-box');
+    if (!box) return;
+    const isHidden = box.style.display === 'none';
+    box.style.display = isHidden ? 'block' : 'none';
+    if (isHidden) {
+        loadServerDeployKey();
+    }
+}
+
+function togglePrivateAuthType() {
+    const type = document.querySelector('input[name="private_auth_type"]:checked')?.value || 'token';
+    const tokenBox = document.getElementById('private-auth-token-box');
+    const sshBox = document.getElementById('private-auth-ssh-box');
+    if (tokenBox) tokenBox.style.display = type === 'token' ? 'block' : 'none';
+    if (sshBox) sshBox.style.display = type === 'ssh' ? 'block' : 'none';
+    if (type === 'ssh') loadServerDeployKey();
+}
+
+async function loadServerDeployKey() {
+    const keyInput = document.getElementById('server-deploy-key-input');
+    if (!keyInput) return;
+    try {
+        const res = await fetch('/api/server-deploy-key', {
+            headers: { 'Authorization': `Bearer ${authToken}` }
+        });
+        const data = await res.json();
+        if (data.success && data.publicKey) {
+            keyInput.value = data.publicKey;
+        }
+    } catch (e) {
+        keyInput.value = 'Failed to load key';
+    }
+}
+
+function copyDeployKey() {
+    const keyInput = document.getElementById('server-deploy-key-input');
+    if (!keyInput || !keyInput.value) return;
+    navigator.clipboard.writeText(keyInput.value).then(() => {
+        showNotification('✅ Server SSH Deploy Key copied to clipboard!');
+    }).catch(() => {
+        keyInput.select();
+        document.execCommand('copy');
+        showNotification('✅ Key copied to clipboard!');
+    });
 }
 
 async function fetchNextFreePort() {
@@ -436,6 +487,7 @@ async function submitInstallApp() {
     const rawScript = (document.getElementById('app-script-input')?.value || '').trim();
     const startScript = rawScript && rawScript.toLowerCase() !== 'auto' ? rawScript : 'auto';
     const repoUrl = (document.getElementById('app-git-url')?.value || '').trim();
+    const gitToken = (document.getElementById('app-git-token')?.value || '').trim();
     const branch = (document.getElementById('app-git-branch')?.value || 'main').trim();
     const zipInput = document.getElementById('app-zip-file');
 
@@ -478,7 +530,8 @@ async function submitInstallApp() {
         port,
         startScript,
         repoUrl,
-        branch
+        branch,
+        gitToken
     };
 
     const sendRequest = async (finalPayload) => {

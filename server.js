@@ -558,6 +558,19 @@ const server = http.createServer(async (req, res) => {
             return res.end(JSON.stringify({ success: true, port: nextPort }));
         }
 
+        // 8.6 Get Server Public SSH Deploy Key for Private Git Repos
+        if (req.url === '/api/server-deploy-key' && req.method === 'GET') {
+            const pubKeyPath = '/root/.ssh/id_ed25519.pub';
+            let pubKey = '';
+            if (fs.existsSync(pubKeyPath)) {
+                pubKey = fs.readFileSync(pubKeyPath, 'utf-8').trim();
+            } else {
+                await runCmd("ssh-keygen -t ed25519 -C 'spanel-deploy@stech.asia' -f /root/.ssh/id_ed25519 -N ''");
+                if (fs.existsSync(pubKeyPath)) pubKey = fs.readFileSync(pubKeyPath, 'utf-8').trim();
+            }
+            return res.end(JSON.stringify({ success: true, publicKey: pubKey }));
+        }
+
         // 9. All-in-One Create App / Web / Domain + Git / ZIP Deployer
         if (req.url === '/api/create-site' && req.method === 'POST') {
             const body = await getJsonBody(req);
@@ -567,6 +580,7 @@ const server = http.createServer(async (req, res) => {
             const repoUrl = (body.repoUrl || '').trim();
             const branch = (body.branch || 'main').trim();
             const startScript = (body.startScript || '').trim();
+            const gitToken = (body.gitToken || '').trim();
 
             if (!domain) {
                 return res.end(JSON.stringify({ success: false, error: 'Domain or subdomain name is required' }));
@@ -591,9 +605,34 @@ const server = http.createServer(async (req, res) => {
 
             // 1. Handle Source (Git / ZIP / Blank)
             if (sourceType === 'git' && repoUrl) {
-                deployLog.push(`Cloning Git repo ${repoUrl} (branch: ${branch})...`);
-                const gitRes = await runCmd(`git clone -b ${branch} "${repoUrl}" "${siteDir}" || (cd "${siteDir}" && git pull origin ${branch})`);
-                deployLog.push(gitRes.stdout || gitRes.stderr || 'Git clone complete');
+                let effectiveRepoUrl = repoUrl;
+                // If personal access token provided, inject credentials
+                if (gitToken) {
+                    if (effectiveRepoUrl.includes('@github.com')) {
+                        effectiveRepoUrl = effectiveRepoUrl.replace(/https:\/\/[^@]+@github\.com\//, 'https://github.com/');
+                    }
+                    if (effectiveRepoUrl.startsWith('https://github.com/')) {
+                        effectiveRepoUrl = effectiveRepoUrl.replace('https://github.com/', `https://${encodeURIComponent(gitToken)}@github.com/`);
+                    } else if (effectiveRepoUrl.startsWith('https://gitlab.com/')) {
+                        effectiveRepoUrl = effectiveRepoUrl.replace('https://gitlab.com/', `https://oauth2:${encodeURIComponent(gitToken)}@gitlab.com/`);
+                    }
+                }
+
+                deployLog.push(`Cloning Git repo (branch: ${branch})...`);
+                // Use GIT_TERMINAL_PROMPT=0 to fail immediately on bad auth instead of hanging on terminal prompt
+                const gitRes = await runCmd(`GIT_TERMINAL_PROMPT=0 git clone -b ${branch} "${effectiveRepoUrl}" "${siteDir}" || (cd "${siteDir}" && GIT_TERMINAL_PROMPT=0 git pull origin ${branch})`);
+                
+                let safeLog = (gitRes.stdout || gitRes.stderr || 'Git clone complete');
+                if (gitToken) safeLog = safeLog.replace(new RegExp(gitToken, 'g'), '****');
+                deployLog.push(safeLog);
+
+                if (gitRes.error && !fs.existsSync(path.join(siteDir, 'package.json')) && !fs.existsSync(path.join(siteDir, 'index.html')) && !fs.existsSync(path.join(siteDir, 'server.js'))) {
+                    return res.end(JSON.stringify({
+                        success: false,
+                        error: 'Git Clone Failed. If this is a private repository, please check your Personal Access Token or SSH Deploy Key.',
+                        details: safeLog
+                    }));
+                }
             } else if (sourceType === 'zip' && body.zipBase64) {
                 deployLog.push('Uploading and extracting ZIP package...');
                 const tempZipPath = path.join(siteDir, '_temp_package.zip');
