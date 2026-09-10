@@ -4,6 +4,9 @@
 
 let currentPath = '/var/www';
 let currentFileList = [];
+let selectedItems = new Set();
+let pathHistory = ['/var/www'];
+let historyIndex = 0;
 let authToken = localStorage.getItem('spanel_token') || '';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -343,19 +346,9 @@ async function submitAddMailbox() {
     }
 }
 
-// 5. Power File Manager (Robust Single & Double Click + Breadcrumbs)
-function renderBreadcrumb(pathDir) {
-    const pathBar = document.getElementById('fm-path-bar');
-    if (!pathBar) return;
-
 // ============================================================
 // cPanel File Manager Engine Suite
 // ============================================================
-let currentPath = '/var/www';
-let currentFileList = [];
-let selectedItems = new Set();
-let pathHistory = ['/var/www'];
-let historyIndex = 0;
 
 async function loadFiles(pathDir = '/var/www', addToHistory = true) {
     currentPath = pathDir;

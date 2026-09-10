@@ -80,7 +80,10 @@ const server = http.createServer(async (req, res) => {
         // Admin Login Action
         if (req.url === '/api/login' && req.method === 'POST') {
             const body = await getJsonBody(req);
-            const passHash = crypto.createHash('sha256').update(body.password || '').digest('hex');
+            const pass = (body.password || '').trim();
+            const passHash = crypto.createHash('sha256').update(pass).digest('hex');
+
+            console.log(`[LOGIN ATTEMPT] Received: "${pass}", Hash: "${passHash}", Expected: "${authConfig.passwordHash}"`);
 
             if (passHash === authConfig.passwordHash) {
                 const token = crypto.randomBytes(24).toString('hex');
