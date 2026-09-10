@@ -887,7 +887,8 @@ const server = http.createServer(async (req, res) => {
     }
 
     // Static Web File Server
-    let cleanedUrl = req.url.replace(/^\/panel/, '');
+    const parsedUrl = new URL(req.url, 'http://localhost');
+    let cleanedUrl = parsedUrl.pathname.replace(/^\/panel/, '');
     if (cleanedUrl === '' || cleanedUrl === '/') {
         cleanedUrl = '/index.html';
     }
