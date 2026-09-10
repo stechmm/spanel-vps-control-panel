@@ -574,8 +574,7 @@ const server = http.createServer(async (req, res) => {
         // 9. All-in-One Create App / Web / Domain + Git / ZIP Deployer
         if (req.url === '/api/create-site' && req.method === 'POST') {
             const body = await getJsonBody(req);
-            const domain = (body.domain || '').trim().toLowerCase();
-            const appType = body.appType || body.type || 'static'; // 'static' | 'proxy' | 'nodejs' | 'python'
+            let appType = body.appType || body.type || 'auto'; // 'auto' | 'static' | 'proxy' | 'nodejs' | 'python'
             const sourceType = body.sourceType || 'blank'; // 'git' | 'zip' | 'blank'
             const repoUrl = (body.repoUrl || '').trim();
             const branch = (body.branch || 'main').trim();
@@ -594,14 +593,8 @@ const server = http.createServer(async (req, res) => {
 
             let deployLog = [];
 
-            // Auto-Allocate Free Port if not specified or 'auto'
+            // Initial port parse
             let port = parseInt(body.port, 10);
-            if (!port || isNaN(port) || port <= 0) {
-                port = await getNextFreePort(3001);
-                deployLog.push(`⚡ Auto-allocated free backend port: ${port}`);
-            } else {
-                deployLog.push(`Using specified backend port: ${port}`);
-            }
 
             // 1. Handle Source (Git / ZIP / Blank)
             if (sourceType === 'git' && repoUrl) {
@@ -651,10 +644,38 @@ const server = http.createServer(async (req, res) => {
                 }
             }
 
+            // Auto-detect platform from cloned or extracted files
+            let detectedPlatform = appType;
+            if (appType === 'auto') {
+                if (fs.existsSync(path.join(siteDir, 'package.json'))) {
+                    detectedPlatform = 'nodejs';
+                    deployLog.push('⚡ Auto-Detected Platform: Node.js (package.json found)');
+                } else if (fs.existsSync(path.join(siteDir, 'requirements.txt')) || fs.existsSync(path.join(siteDir, 'app.py')) || fs.existsSync(path.join(siteDir, 'main.py'))) {
+                    detectedPlatform = 'python';
+                    deployLog.push('⚡ Auto-Detected Platform: Python (Python script / requirements found)');
+                } else {
+                    detectedPlatform = 'static';
+                    deployLog.push('⚡ Auto-Detected Platform: Static Web / HTML / PHP');
+                }
+            } else {
+                deployLog.push(`Platform selected: ${appType}`);
+            }
+
+            const isProxy = (detectedPlatform === 'proxy' || detectedPlatform === 'nodejs' || detectedPlatform === 'python');
+
+            // Auto-Allocate Free Port if daemon/proxy app and port not specified
+            if (isProxy) {
+                if (!port || isNaN(port) || port <= 0) {
+                    port = await getNextFreePort(3001);
+                    deployLog.push(`⚡ Auto-allocated free backend port: ${port}`);
+                } else {
+                    deployLog.push(`Using specified backend port: ${port}`);
+                }
+            }
+
             // 2. Handle Node.js / Python PM2 background process
             let runTarget = startScript;
-            const isProxy = (appType === 'proxy' || appType === 'nodejs' || appType === 'python');
-            if (appType === 'nodejs') {
+            if (detectedPlatform === 'nodejs') {
                 if (fs.existsSync(path.join(siteDir, 'package.json'))) {
                     deployLog.push('Installing npm dependencies...');
                     await runCmd(`cd "${siteDir}" && npm install --production`);
@@ -664,6 +685,12 @@ const server = http.createServer(async (req, res) => {
 
                 deployLog.push(`Starting PM2 app: ${domain} on port ${port}...`);
                 await runCmd(`cd "${siteDir}" && PORT=${port} pm2 start "${runTarget}" --name "${domain}" --update-env || pm2 restart "${domain}"`);
+                await runCmd('pm2 save');
+            } else if (detectedPlatform === 'python') {
+                runTarget = detectStartFile(siteDir, startScript || 'app.py');
+                deployLog.push(`⚡ Detected Python entry point: ${runTarget}`);
+                deployLog.push(`Starting PM2 Python app: ${domain} on port ${port}...`);
+                await runCmd(`cd "${siteDir}" && PORT=${port} pm2 start "${runTarget}" --name "${domain}" --interpreter python3 --update-env || pm2 restart "${domain}"`);
                 await runCmd('pm2 save');
             }
 
@@ -722,9 +749,9 @@ const server = http.createServer(async (req, res) => {
                 success: true,
                 message: `App / Domain ${domain} installed and deployed successfully!`,
                 domain: domain,
-                appType: appType,
-                allocatedPort: isProxy ? port : 80,
-                detectedStartScript: runTarget,
+                appType: detectedPlatform,
+                allocatedPort: isProxy ? port : null,
+                detectedStartScript: isProxy ? runTarget : null,
                 log: deployLog.join('\n')
             }));
         }

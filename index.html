@@ -847,10 +847,14 @@
                 <div class="form-group">
                     <label><i class="fa-solid fa-layer-group"></i> Application Platform</label>
                     <select id="app-platform-select" class="form-control" onchange="togglePlatformOptions()">
+                        <option value="auto" selected>⚡ Auto-Detect Platform (Recommended / အလိုအလျောက် ခွဲခြားမည်)</option>
+                        <option value="nodejs">Node.js / Express / Next.js (PM2 Managed)</option>
                         <option value="static">Static Web / PHP / HTML (Direct Nginx)</option>
-                        <option value="nodejs" selected>Node.js / Express / Next.js (PM2 Managed)</option>
                         <option value="proxy">Generic Reverse Proxy App (Python / Go / Custom)</option>
                     </select>
+                    <small id="platform-hint" style="color:#a5b4fc; font-size:11px; display:block; margin-top:4px;">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> စနစ်က Code ဖိုင်များကို စစ်ဆေးပြီး Node.js / Static / Proxy ကို အလိုအလျောက် သတ်မှတ်ကာ Port နှင့် Start File ကိုလည်း auto ချိတ်ဆက်ပေးပါမည်။
+                    </small>
                 </div>
 
                 <!-- Node.js / Proxy Port & Start Script Options -->

@@ -450,9 +450,10 @@ async function fetchNextFreePort() {
 }
 
 function togglePlatformOptions() {
-    const platform = document.getElementById('app-platform-select')?.value || 'static';
+    const platform = document.getElementById('app-platform-select')?.value || 'auto';
     const proxyGroup = document.getElementById('proxy-settings-group');
     const scriptWrapper = document.getElementById('node-script-wrapper');
+    const platformHint = document.getElementById('platform-hint');
 
     if (proxyGroup) {
         if (platform === 'static') {
@@ -460,8 +461,24 @@ function togglePlatformOptions() {
         } else {
             proxyGroup.style.display = 'block';
             if (scriptWrapper) {
-                scriptWrapper.style.display = platform === 'nodejs' ? 'block' : 'none';
+                scriptWrapper.style.display = (platform === 'nodejs' || platform === 'auto') ? 'block' : 'none';
             }
+        }
+    }
+
+    if (platformHint) {
+        if (platform === 'auto') {
+            platformHint.innerHTML = `<i class="fa-solid fa-wand-magic-sparkles"></i> စနစ်က Code ဖိုင်များကို စစ်ဆေးပြီး Node.js / Static / Proxy ကို အလိုအလျောက် သတ်မှတ်ကာ Port နှင့် Start File ကိုလည်း auto ချိတ်ဆက်ပေးပါမည်။`;
+            platformHint.style.display = 'block';
+        } else if (platform === 'static') {
+            platformHint.innerHTML = `<i class="fa-solid fa-circle-info"></i> HTML / CSS / JS / PHP ဖိုင်များအတွက် Nginx က တိုက်ရိုက် serve လုပ်ပေးပါမည် (Port မလိုပါ)။`;
+            platformHint.style.display = 'block';
+        } else if (platform === 'nodejs') {
+            platformHint.innerHTML = `<i class="fa-brands fa-node-js text-success"></i> Node.js dependencies များကို auto-install လုပ်ပြီး PM2 daemon ဖြင့် စတင်ပေးပါမည်။`;
+            platformHint.style.display = 'block';
+        } else {
+            platformHint.innerHTML = `<i class="fa-solid fa-network-wired text-primary"></i> 指定ထားသော backend port သို့ Nginx က reverse proxy လုပ်ပေးပါမည်။`;
+            platformHint.style.display = 'block';
         }
     }
 }
@@ -480,7 +497,7 @@ function toggleSourceInputs() {
 async function submitInstallApp() {
     const domainInput = document.getElementById('app-domain-input');
     const domain = (domainInput?.value || '').trim().toLowerCase();
-    const appType = document.getElementById('app-platform-select')?.value || 'static';
+    const appType = document.getElementById('app-platform-select')?.value || 'auto';
     const sourceType = document.querySelector('input[name="app_source"]:checked')?.value || 'blank';
     const rawPort = (document.getElementById('app-port-input')?.value || '').trim();
     const port = rawPort && !isNaN(parseInt(rawPort, 10)) ? parseInt(rawPort, 10) : 'auto';
@@ -547,15 +564,16 @@ async function submitInstallApp() {
             const data = await res.json();
 
             if (data.success) {
+                const platInfo = data.appType ? ` [Platform: <strong>${data.appType.toUpperCase()}</strong>]` : '';
                 const portInfo = data.allocatedPort ? ` (Port: <strong>${data.allocatedPort}</strong>)` : '';
                 const scriptInfo = data.detectedStartScript ? ` [Entry File: <code>${data.detectedStartScript}</code>]` : '';
                 if (statusBox) {
                     statusBox.style.background = 'rgba(16, 185, 129, 0.15)';
                     statusBox.style.color = '#34d399';
                     statusBox.style.border = '1px solid rgba(16, 185, 129, 0.3)';
-                    statusBox.innerHTML = `✅ <strong>${domain}</strong> is successfully deployed and connected!${portInfo}${scriptInfo}`;
+                    statusBox.innerHTML = `✅ <strong>${domain}</strong> is successfully deployed and connected!${platInfo}${portInfo}${scriptInfo}`;
                 }
-                showNotification(`✅ App ${domain} installed successfully!${portInfo ? ` on port ${data.allocatedPort}` : ''}`);
+                showNotification(`✅ App ${domain} installed successfully!${platInfo}`);
                 setTimeout(() => {
                     closeModal('modal-add-site');
                     loadSites();
